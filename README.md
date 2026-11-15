@@ -4,9 +4,11 @@ An LSPosed module that lets you tune the spring physics of the launcher open and
 
 ## Features
 
-- Eight ready made profiles from instant to jelly, plus a custom mode
-- Separate stiffness and damping for opening and closing
-- Live preview that simulates the values you pick
+- Twenty ready made themes, plus your own saved themes
+- Opening curves: spring, overshoot, anticipate, bounce, decelerate, ease, custom Bezier and linear
+- Closing springs with stiffness and damping, optionally separate for horizontal, vertical and scale
+- Speed control for both directions
+- Live preview that plays your opening and closing settings
 - Material 3 interface with dynamic color
 - Backup and restore of your settings
 - English and Turkish, following the system language
@@ -20,10 +22,10 @@ An LSPosed module that lets you tune the spring physics of the launcher open and
 
 ## How it works
 
-The module hooks two places inside the launcher process.
+The module hooks the launcher process.
 
-- Closing and return to home: the spring configuration used by `RectFSpringAnim`
-- Opening from an icon: the springs created by the shared `TransitionAnimator`
+- Opening from an icon: the launcher drives the window with a 500 ms animator and two interpolators. The module swaps those interpolators for the curve you picked.
+- Closing and return to home: `RectFSpringAnim` reads its spring values through `DynamicResource`. The module replaces the stiffness and damping values while a closing animation starts.
 
 Settings are shared with the launcher through libxposed remote preferences, so a new value is picked up by the next animation.
 

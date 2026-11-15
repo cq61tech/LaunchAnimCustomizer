@@ -1,38 +1,91 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">LaunchAnimCustomizer</string>
-    <string name="module_description">Başlatıcının açılış ve kapanış animasyonlarının yay fiziğini ayarlar.</string>
-
+    <string name="module_description">Başlatıcının açılış ve kapanış animasyonlarını eğriler ve yaylarla özelleştirir.</string>
     <string name="nav_home">Ana Menü</string>
     <string name="nav_customize">Kişiselleştir</string>
     <string name="nav_settings">Ayarlar</string>
-
     <string name="banner_quote">En basit tıklamayla dünyaları açıp kapatırken bile, akışa ve kurallara senin ritmin yön vermeli.</string>
-
     <string name="status_active">Modül aktif</string>
     <string name="status_inactive">Modül aktif değil</string>
     <string name="status_framework">Çerçeve</string>
     <string name="status_hint_active">Modül bağlı. Kapsamı değiştirdikten ya da modülü güncelledikten sonra başlatıcıyı yeniden başlat.</string>
     <string name="status_hint_inactive">Modülü LSPosed\'da etkinleştir, kapsamda başlatıcını işaretle ve bu uygulamayı yeniden aç.</string>
-
     <string name="features_title">Neler yapabilirsin?</string>
     <string name="features_subtitle">Başlatıcı animasyonlarını kendi tarzında hareket ettir</string>
-    <string name="feature_presets">Ani\'den jöleye kadar hazır profillerden birini seç</string>
-    <string name="feature_spring">Yayın sertliğini ve sönümlemesini ayarla</string>
+    <string name="feature_presets">20 hazır temadan birini seç ya da kendi temanı kaydet</string>
+    <string name="feature_curves">Açılışı yay, sekme, taşma ya da özel Bezier eğrisiyle şekillendir</string>
+    <string name="feature_close">Kapanış yaylarını her eksen için ayarla</string>
     <string name="feature_live">Değişiklikler anında uygulanır, yeniden başlatma gerekmez</string>
-    <string name="feature_directions">Açılış ve kapanışı ayrı ayrı belirle</string>
-
     <string name="credits_title">Emeği geçenler</string>
     <string name="credits_body">@cq61tech tarafından geliştirildi. Açık kaynak, libxposed ve LSPosed ile yapıldı.</string>
     <string name="credits_fonts">Yazı tipleri: Nunito, Quicksand, Fredoka (SIL Open Font License), uygulamanın içinde gömülü.</string>
     <string name="credits_github">GitHub deposu</string>
-
     <string name="enable_title">Animasyonları değiştir</string>
     <string name="enable_desc">Kapatırsan sistemin kendi animasyonları kullanılır</string>
     <string name="preview_title">Önizleme</string>
-    <string name="preview_note">Aşağıdaki yay değerlerinin bir benzetimi. Gerçek animasyon başlatıcıda çalışır.</string>
-
-    <string name="presets_title">Hazır profiller</string>
+    <string name="preview_note">Ayarlarının bir benzetimi: önce açılış, sonra kapanış. Gerçek animasyon başlatıcıda çalışır.</string>
+    <string name="presets_title">Temalar</string>
+    <string name="preset_custom">Özel</string>
+    <string name="user_presets_title">Temalarım</string>
+    <string name="user_presets_empty">Şimdiki ayarlarını tema olarak kaydet, sonra tekrar kullan.</string>
+    <string name="save_preset">Şimdikini tema olarak kaydet</string>
+    <string name="preset_name_hint">Tema adı</string>
+    <string name="save">Kaydet</string>
+    <string name="cancel">Vazgeç</string>
+    <string name="delete">Sil</string>
+    <string name="open_label">Açılış</string>
+    <string name="close_label">Kapanış</string>
+    <string name="curve_label">Eğri</string>
+    <string name="curve_spring">Yay</string>
+    <string name="curve_overshoot">Taşma</string>
+    <string name="curve_anticipate">Hazırlık</string>
+    <string name="curve_bounce">Sekme</string>
+    <string name="curve_decelerate">Yavaşlama</string>
+    <string name="curve_ease">Yumuşak</string>
+    <string name="curve_bezier">Bezier</string>
+    <string name="curve_linear">Doğrusal</string>
+    <string name="stiffness_label">Sertlik</string>
+    <string name="damping_label">Sönümleme oranı</string>
+    <string name="tension_label">Gerilim</string>
+    <string name="power_label">Güç</string>
+    <string name="speed_label">Hız</string>
+    <string name="speed_hint_open">Açılış sistemin sabit 500 ms penceresinde çalışır, bu yüzden 1\'in altındaki değerler yalnızca yayları yavaşlatır.</string>
+    <string name="speed_hint_close">Kapanış yaylarının sertliğini ölçekler.</string>
+    <string name="bezier_x1">Kontrol noktası 1, X</string>
+    <string name="bezier_y1">Kontrol noktası 1, Y</string>
+    <string name="bezier_x2">Kontrol noktası 2, X</string>
+    <string name="bezier_y2">Kontrol noktası 2, Y</string>
+    <string name="split_title">Eksenleri ayır</string>
+    <string name="split_desc">Yatay, dikey ve ölçek yaylarını ayrı ayrı ayarla</string>
+    <string name="axis_x">Yatay</string>
+    <string name="axis_y">Dikey</string>
+    <string name="axis_scale">Ölçek</string>
+    <string name="apply">Uygula</string>
+    <string name="reset">Sıfırla</string>
+    <string name="applied_toast">Uygulandı. Yeni animasyonlar bu değerleri kullanır.</string>
+    <string name="reset_toast">Varsayılana döndü. Kalıcı olması için Uygula\'ya dokun.</string>
+    <string name="maintenance_title">Yeniden başlat</string>
+    <string name="maintenance_desc">Modülü etkinleştirdikten veya kapsamını değiştirdikten sonra bir kez gerekir. Root ister.</string>
+    <string name="restart_launcher">Başlatıcıyı yeniden başlat</string>
+    <string name="restart_systemui">System UI\'ı yeniden başlat</string>
+    <string name="root_done">Tamam</string>
+    <string name="root_failed">Root erişimi alınamadı</string>
+    <string name="backup_title">Yedekleme</string>
+    <string name="backup_export">Ayarları dışa aktar</string>
+    <string name="backup_import">Ayarları içe aktar</string>
+    <string name="backup_done">Tamam</string>
+    <string name="backup_failed">Olmadı</string>
+    <string name="app_section_title">Uygulama</string>
+    <string name="hide_icon">Uygulama simgesini gizle</string>
+    <string name="hide_icon_desc">Modülü bunun yerine LSPosed\'dan aç</string>
+    <string name="debug_title">Hata ayıklama günlüğü</string>
+    <string name="debug_desc">Logcat\'e ek ayrıntılar yaz</string>
+    <string name="debug_view">Günlüğü göster</string>
+    <string name="debug_empty">Henüz günlük satırı yok. Başlatıcıyı yeniden başlatıp tekrar dene.</string>
+    <string name="debug_copy">Kopyala</string>
+    <string name="close">Kapat</string>
+    <string name="version_label">Sürüm %1$s</string>
     <string name="preset_classic">Klasik</string>
     <string name="preset_classic_desc">Dengeli, sistem varsayılanı</string>
     <string name="preset_quick">Hızlı</string>
@@ -49,38 +102,28 @@
     <string name="preset_smooth_desc">Hiç sekme yok</string>
     <string name="preset_instant">Anlık</string>
     <string name="preset_instant_desc">Neredeyse animasyonsuz</string>
-    <string name="preset_custom">Özel, kaydırıcıları kullan</string>
-
-    <string name="open_label">Açılış</string>
-    <string name="close_label">Kapanış</string>
-    <string name="stiffness_label">Sertlik</string>
-    <string name="damping_label">Sönümleme oranı</string>
-    <string name="apply">Uygula</string>
-    <string name="reset">Sıfırla</string>
-    <string name="applied_toast">Uygulandı. Yeni animasyonlar bu değerleri kullanır.</string>
-    <string name="reset_toast">Varsayılana döndü. Kalıcı olması için Uygula\'ya dokun.</string>
-
-    <string name="maintenance_title">Yeniden başlat</string>
-    <string name="maintenance_desc">Modülü etkinleştirdikten veya kapsamını değiştirdikten sonra bir kez gerekir. Root ister.</string>
-    <string name="restart_launcher">Başlatıcıyı yeniden başlat</string>
-    <string name="restart_systemui">System UI\'ı yeniden başlat</string>
-    <string name="root_done">Tamam</string>
-    <string name="root_failed">Root erişimi alınamadı</string>
-
-    <string name="backup_title">Yedekleme</string>
-    <string name="backup_export">Ayarları dışa aktar</string>
-    <string name="backup_import">Ayarları içe aktar</string>
-    <string name="backup_done">Tamam</string>
-    <string name="backup_failed">Olmadı</string>
-
-    <string name="app_section_title">Uygulama</string>
-    <string name="hide_icon">Uygulama simgesini gizle</string>
-    <string name="hide_icon_desc">Modülü bunun yerine LSPosed\'dan aç</string>
-    <string name="debug_title">Hata ayıklama günlüğü</string>
-    <string name="debug_desc">Logcat\'e ek ayrıntılar yaz</string>
-    <string name="debug_view">Günlüğü göster</string>
-    <string name="debug_empty">Henüz günlük satırı yok. Başlatıcıyı yeniden başlatıp tekrar dene.</string>
-    <string name="debug_copy">Kopyala</string>
-    <string name="close">Kapat</string>
-    <string name="version_label">Sürüm %1$s</string>
+    <string name="preset_rubber">Lastik</string>
+    <string name="preset_rubber_desc">Esneyen, uzun sallanmalı</string>
+    <string name="preset_gentle">Nazik</string>
+    <string name="preset_gentle_desc">Yavaş ve yumuşak, sekmesiz</string>
+    <string name="preset_heavy">Ağır</string>
+    <string name="preset_heavy_desc">Ağır, hafif oturmalı</string>
+    <string name="preset_wobble">Sallantı</string>
+    <string name="preset_wobble_desc">Canlı, orta sekmeli</string>
+    <string name="preset_liquid">Sıvı</string>
+    <string name="preset_liquid_desc">Akıcı, yumuşak taşmalı</string>
+    <string name="preset_turbo">Turbo</string>
+    <string name="preset_turbo_desc">Çok hızlı ve net</string>
+    <string name="preset_pop">Patlama</string>
+    <string name="preset_pop_desc">Açılışta vurucu taşma</string>
+    <string name="preset_glide">Süzülme</string>
+    <string name="preset_glide_desc">Uzun, yavaşlayan süzülme</string>
+    <string name="preset_anticipate">Hazırlık</string>
+    <string name="preset_anticipate_desc">Açılmadan önce geri çekilir</string>
+    <string name="preset_bounce">Sekme</string>
+    <string name="preset_bounce_desc">Düşer ve sekerek yerine oturur</string>
+    <string name="preset_cinematic">Sinematik</string>
+    <string name="preset_cinematic_desc">Pürüzsüz vurgulu eğri</string>
+    <string name="preset_linear">Doğrusal</string>
+    <string name="preset_linear_desc">Sabit hız, yumuşatma yok</string>
 </resources>

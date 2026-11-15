@@ -3,24 +3,32 @@ package com.cq61tech.launchanimcustomizer.xposed
 import android.content.SharedPreferences
 import android.util.Log
 import com.cq61tech.launchanimcustomizer.Config
-import com.cq61tech.launchanimcustomizer.Presets
-import com.cq61tech.launchanimcustomizer.Spring
+import com.cq61tech.launchanimcustomizer.Keys
+import com.cq61tech.launchanimcustomizer.OpenSettings
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Field
+import kotlin.math.max
 
 class LauncherHooks(
     private val module: XposedModule,
     private val loader: ClassLoader,
     private val prefs: SharedPreferences
 ) {
+    private class Snapshot(val raw: String?, val config: Config, val curve: CurveInterpolator)
+
+    @Volatile
+    private var snapshot = Snapshot(null, Config(), CurveInterpolator(OpenSettings()))
+
+    private val closeCounter = ThreadLocal<IntArray?>()
+    private var originalPrimary: Any? = null
+    private var originalHorizontal: Any? = null
     private var logged = 0
 
     fun install() {
-        val seen = current()
-        Log.i(TAG, "config enabled=${seen.enabled} mode=${seen.mode} open=${seen.open} close=${seen.close} keys=${prefs.all.size}")
-        attempt("close spring") { hookClose() }
-        attempt("open animation") { hookOpenRunner() }
-        attempt("container spring") { hookOpen() }
+        val seen = current().config
+        Log.i(TAG, "config enabled=${seen.enabled} mode=${seen.mode} keys=${prefs.all.size}")
+        attempt("open animation") { hookOpen() }
+        attempt("close animation") { hookClose() }
     }
 
     private fun attempt(name: String, block: () -> Unit) {
@@ -32,52 +40,24 @@ class LauncherHooks(
         }
     }
 
-    private fun current(): Config = Config.read(prefs)
-
-    private fun active(config: Config): Boolean =
-        config.enabled && config.mode != Presets.CLASSIC
+    private fun current(): Snapshot {
+        val text = prefs.getString(Keys.CONFIG, null)
+        val old = snapshot
+        if (text == old.raw) return old
+        val config = Config.fromRaw(text)
+        val fresh = Snapshot(text, config, CurveInterpolator(config.open))
+        snapshot = fresh
+        return fresh
+    }
 
     private fun note(message: String) {
-        if (logged < 12 || (logged < 60 && current().debug)) {
+        if (logged < 12 || (logged < 80 && current().config.debug)) {
             logged++
             Log.i(TAG, message)
         }
     }
 
-    private fun hookClose() {
-        val animClass = loader.loadClass("com.android.quickstep.util.RectFSpringAnim")
-        val configClass = loader.loadClass("com.android.quickstep.util.RectFSpringAnim\$SpringConfig")
-        val constructor = animClass.getDeclaredConstructor(configClass)
-        val stiffnessX = field(configClass, "stiffnessX")
-        val stiffnessY = field(configClass, "stiffnessY")
-        val rectStiffness = field(configClass, "rectStiffness")
-        val dampingX = field(configClass, "dampingX")
-        val dampingY = field(configClass, "dampingY")
-        module.hook(constructor).intercept { chain ->
-            note("close constructor fired")
-            try {
-                val config = current()
-                val target: Any? = chain.getArg(0)
-                if (active(config) && target != null) {
-                    val spring = config.close
-                    stiffnessX.setFloat(target, spring.stiffness)
-                    stiffnessY.setFloat(target, spring.stiffness)
-                    rectStiffness.setFloat(target, spring.stiffness)
-                    dampingX.setFloat(target, spring.damping)
-                    dampingY.setFloat(target, spring.damping)
-                    note("close spring ${spring.stiffness} / ${spring.damping}")
-                }
-            } catch (t: Throwable) {
-                Log.e(TAG, "close spring override failed", t)
-            }
-            chain.proceed()
-        }
-    }
-
-    private var originalPrimary: Any? = null
-    private var originalHorizontal: Any? = null
-
-    private fun hookOpenRunner() {
+    private fun hookOpen() {
         val runner = loader.loadClass(
             "com.android.launcher3.QuickstepTransitionManager\$AppLaunchAnimationRunner"
         )
@@ -89,7 +69,6 @@ class LauncherHooks(
             it.name == "onAnimationStart" && !it.isSynthetic && !it.isBridge
         }
         module.hook(start).intercept { chain ->
-            note("open runner fired")
             try {
                 val owner = outer.get(chain.thisObject)
                 if (owner != null) {
@@ -97,60 +76,71 @@ class LauncherHooks(
                         originalPrimary = primary.get(owner)
                         originalHorizontal = horizontal.get(owner)
                     }
-                    val config = current()
-                    if (active(config)) {
-                        val spring = config.open
-                        val curve = SpringInterpolator(spring.stiffness, spring.damping)
-                        primary.set(owner, curve)
-                        horizontal.set(owner, curve)
-                        note("open curve ${spring.stiffness} / ${spring.damping}")
+                    val snap = current()
+                    if (snap.config.active) {
+                        primary.set(owner, snap.curve)
+                        horizontal.set(owner, snap.curve)
+                        note("open curve ${snap.config.open.curve}")
                     } else {
                         primary.set(owner, originalPrimary)
                         horizontal.set(owner, originalHorizontal)
                     }
                 }
             } catch (t: Throwable) {
-                Log.e(TAG, "open curve override failed", t)
+                Log.e(TAG, "open override failed", t)
             }
             chain.proceed()
         }
     }
 
-    private fun hookOpen() {
-        val multi = loader.loadClass(
-            "com.android.systemui.animation.TransitionAnimator\$MultiSpringAnimation"
-        )
-        val start = multi.getDeclaredMethod("initAndStartSprings", java.lang.Long.TYPE)
-        module.hook(start).intercept { chain ->
-            val owner = chain.thisObject
-            retune(multi, owner)
-            val result = chain.proceed()
-            retune(multi, owner)
-            result
-        }
-    }
-
-    private fun retune(multi: Class<*>, owner: Any?) {
-        if (owner == null) return
-        try {
-            val config = current()
-            if (!active(config)) return
-            val spring = config.open
-            for (getter in arrayOf("getSpringX", "getSpringY", "getSpringScale")) {
-                val animation = multi.getMethod(getter).invoke(owner) ?: continue
-                apply(animation, spring)
+    private fun hookClose() {
+        val anim = loader.loadClass("com.android.quickstep.util.RectFSpringAnim")
+        val resource = loader.loadClass("com.android.launcher3.util.DynamicResource")
+        val getFloat = resource.getDeclaredMethod("getFloat", Integer.TYPE)
+        val starts = anim.declaredMethods.filter { it.name == "start" }
+        check(starts.isNotEmpty()) { "start not found" }
+        starts.forEach { method ->
+            module.hook(method).intercept { chain ->
+                closeCounter.set(IntArray(1))
+                try {
+                    chain.proceed()
+                } finally {
+                    closeCounter.remove()
+                }
             }
-            note("open spring ${spring.stiffness} / ${spring.damping}")
-        } catch (t: Throwable) {
-            Log.e(TAG, "open spring override failed", t)
+        }
+        module.hook(getFloat).intercept { chain ->
+            val original = chain.proceed()
+            val state = closeCounter.get()
+            if (state == null || original !is Float) {
+                original
+            } else {
+                tune(state, original)
+            }
         }
     }
 
-    private fun apply(animation: Any, spring: Spring) {
-        val force = animation.javaClass.getMethod("getSpring").invoke(animation) ?: return
-        val floatType = java.lang.Float.TYPE
-        force.javaClass.getMethod("setStiffness", floatType).invoke(force, spring.stiffness)
-        force.javaClass.getMethod("setDampingRatio", floatType).invoke(force, spring.damping)
+    private fun tune(state: IntArray, value: Float): Float {
+        state[0]++
+        val index = state[0]
+        val config = current().config
+        if (!config.active) return value
+        val close = config.close
+        val axis = when (index) {
+            2, 3 -> close.x
+            4, 5 -> if (close.split) close.y else close.x
+            6, 7 -> if (close.split) close.scale else close.x
+            else -> return value
+        }
+        val speed = close.speed.coerceIn(0.2f, 4f)
+        val stiffness = index % 2 == 0
+        val result = when {
+            stiffness && value >= 5f -> max(1f, axis.stiffness * speed * speed)
+            !stiffness && value <= 5f -> axis.damping
+            else -> value
+        }
+        if (result != value) note("close #$index $value -> $result")
+        return result
     }
 
     private fun field(owner: Class<*>, name: String): Field =

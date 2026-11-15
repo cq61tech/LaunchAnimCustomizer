@@ -148,9 +148,9 @@ private fun FeaturesCard() {
         }
         listOf(
             R.string.feature_presets,
-            R.string.feature_spring,
-            R.string.feature_live,
-            R.string.feature_directions
+            R.string.feature_curves,
+            R.string.feature_close,
+            R.string.feature_live
         ).forEach {
             Text(
                 text = "•  " + stringResource(it),

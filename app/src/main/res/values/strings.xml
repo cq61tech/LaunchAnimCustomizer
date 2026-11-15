@@ -1,38 +1,91 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">LaunchAnimCustomizer</string>
-    <string name="module_description">Tune the spring physics of the launcher open and close animations.</string>
-
+    <string name="module_description">Customize the open and close animations of the launcher with curves and springs.</string>
     <string name="nav_home">Home</string>
     <string name="nav_customize">Customize</string>
     <string name="nav_settings">Settings</string>
-
     <string name="banner_quote">Even while opening and closing worlds with the simplest tap, your own rhythm should set the flow and the rules.</string>
-
     <string name="status_active">Module active</string>
     <string name="status_inactive">Module inactive</string>
     <string name="status_framework">Framework</string>
     <string name="status_hint_active">The module is connected. Restart the launcher after changing scope or updating the module.</string>
     <string name="status_hint_inactive">Enable the module in LSPosed, tick your launcher in the scope and reopen this app.</string>
-
     <string name="features_title">What can you do?</string>
     <string name="features_subtitle">Make launcher animations move your way</string>
-    <string name="feature_presets">Pick a ready made profile, from instant to jelly</string>
-    <string name="feature_spring">Tune stiffness and damping of the spring</string>
+    <string name="feature_presets">Pick from 20 ready made themes or save your own</string>
+    <string name="feature_curves">Shape opening with springs, bounce, overshoot or a custom Bezier curve</string>
+    <string name="feature_close">Tune the closing springs for each axis</string>
     <string name="feature_live">Changes apply live, no restart needed</string>
-    <string name="feature_directions">Set opening and closing separately</string>
-
     <string name="credits_title">Credits</string>
     <string name="credits_body">Developed by @cq61tech. Open source, built with libxposed and LSPosed.</string>
     <string name="credits_fonts">Fonts: Nunito, Quicksand, Fredoka (SIL Open Font License), bundled in the app.</string>
     <string name="credits_github">GitHub repository</string>
-
     <string name="enable_title">Override animations</string>
     <string name="enable_desc">Turn off to use the system animations</string>
     <string name="preview_title">Preview</string>
-    <string name="preview_note">A simulation of the spring values below. The real animation runs in the launcher.</string>
-
-    <string name="presets_title">Presets</string>
+    <string name="preview_note">A simulation of your settings: opening first, then closing. The real animation runs in the launcher.</string>
+    <string name="presets_title">Themes</string>
+    <string name="preset_custom">Custom</string>
+    <string name="user_presets_title">My themes</string>
+    <string name="user_presets_empty">Save your current settings as a theme to reuse them later.</string>
+    <string name="save_preset">Save current as theme</string>
+    <string name="preset_name_hint">Theme name</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="open_label">Opening</string>
+    <string name="close_label">Closing</string>
+    <string name="curve_label">Curve</string>
+    <string name="curve_spring">Spring</string>
+    <string name="curve_overshoot">Overshoot</string>
+    <string name="curve_anticipate">Anticipate</string>
+    <string name="curve_bounce">Bounce</string>
+    <string name="curve_decelerate">Decelerate</string>
+    <string name="curve_ease">Ease</string>
+    <string name="curve_bezier">Bezier</string>
+    <string name="curve_linear">Linear</string>
+    <string name="stiffness_label">Stiffness</string>
+    <string name="damping_label">Damping ratio</string>
+    <string name="tension_label">Tension</string>
+    <string name="power_label">Strength</string>
+    <string name="speed_label">Speed</string>
+    <string name="speed_hint_open">Opening runs inside the system\'s fixed 500 ms window, so values below 1 only slow springs.</string>
+    <string name="speed_hint_close">Scales the stiffness of the closing springs.</string>
+    <string name="bezier_x1">Control point 1, X</string>
+    <string name="bezier_y1">Control point 1, Y</string>
+    <string name="bezier_x2">Control point 2, X</string>
+    <string name="bezier_y2">Control point 2, Y</string>
+    <string name="split_title">Separate axes</string>
+    <string name="split_desc">Tune horizontal, vertical and scale springs on their own</string>
+    <string name="axis_x">Horizontal</string>
+    <string name="axis_y">Vertical</string>
+    <string name="axis_scale">Scale</string>
+    <string name="apply">Apply</string>
+    <string name="reset">Reset</string>
+    <string name="applied_toast">Applied. New animations use these values.</string>
+    <string name="reset_toast">Reset to defaults. Tap Apply to keep it.</string>
+    <string name="maintenance_title">Restart</string>
+    <string name="maintenance_desc">Needed once after enabling the module or changing its scope. Requires root.</string>
+    <string name="restart_launcher">Restart launcher</string>
+    <string name="restart_systemui">Restart System UI</string>
+    <string name="root_done">Done</string>
+    <string name="root_failed">Root access failed</string>
+    <string name="backup_title">Backup</string>
+    <string name="backup_export">Export settings</string>
+    <string name="backup_import">Import settings</string>
+    <string name="backup_done">Done</string>
+    <string name="backup_failed">That did not work</string>
+    <string name="app_section_title">App</string>
+    <string name="hide_icon">Hide app icon</string>
+    <string name="hide_icon_desc">Open the module from LSPosed instead</string>
+    <string name="debug_title">Debug log</string>
+    <string name="debug_desc">Write extra details to logcat</string>
+    <string name="debug_view">Show log</string>
+    <string name="debug_empty">No log lines yet. Restart the launcher and try again.</string>
+    <string name="debug_copy">Copy</string>
+    <string name="close">Close</string>
+    <string name="version_label">Version %1$s</string>
     <string name="preset_classic">Classic</string>
     <string name="preset_classic_desc">Balanced, the system default</string>
     <string name="preset_quick">Quick</string>
@@ -49,38 +102,28 @@
     <string name="preset_smooth_desc">No bounce at all</string>
     <string name="preset_instant">Instant</string>
     <string name="preset_instant_desc">Almost no animation</string>
-    <string name="preset_custom">Custom, use the sliders</string>
-
-    <string name="open_label">Opening</string>
-    <string name="close_label">Closing</string>
-    <string name="stiffness_label">Stiffness</string>
-    <string name="damping_label">Damping ratio</string>
-    <string name="apply">Apply</string>
-    <string name="reset">Reset</string>
-    <string name="applied_toast">Applied. New animations use these values.</string>
-    <string name="reset_toast">Reset to defaults. Tap Apply to keep it.</string>
-
-    <string name="maintenance_title">Restart</string>
-    <string name="maintenance_desc">Needed once after enabling the module or changing its scope. Requires root.</string>
-    <string name="restart_launcher">Restart launcher</string>
-    <string name="restart_systemui">Restart System UI</string>
-    <string name="root_done">Done</string>
-    <string name="root_failed">Root access failed</string>
-
-    <string name="backup_title">Backup</string>
-    <string name="backup_export">Export settings</string>
-    <string name="backup_import">Import settings</string>
-    <string name="backup_done">Done</string>
-    <string name="backup_failed">That did not work</string>
-
-    <string name="app_section_title">App</string>
-    <string name="hide_icon">Hide app icon</string>
-    <string name="hide_icon_desc">Open the module from LSPosed instead</string>
-    <string name="debug_title">Debug log</string>
-    <string name="debug_desc">Write extra details to logcat</string>
-    <string name="debug_view">Show log</string>
-    <string name="debug_empty">No log lines yet. Restart the launcher and try again.</string>
-    <string name="debug_copy">Copy</string>
-    <string name="close">Close</string>
-    <string name="version_label">Version %1$s</string>
+    <string name="preset_rubber">Rubber</string>
+    <string name="preset_rubber_desc">Stretchy with long wobbles</string>
+    <string name="preset_gentle">Gentle</string>
+    <string name="preset_gentle_desc">Slow and soft, no bounce</string>
+    <string name="preset_heavy">Heavy</string>
+    <string name="preset_heavy_desc">Weighty with a slight settle</string>
+    <string name="preset_wobble">Wobble</string>
+    <string name="preset_wobble_desc">Lively, medium bounce</string>
+    <string name="preset_liquid">Liquid</string>
+    <string name="preset_liquid_desc">Fluid with a soft overshoot</string>
+    <string name="preset_turbo">Turbo</string>
+    <string name="preset_turbo_desc">Very fast and crisp</string>
+    <string name="preset_pop">Pop</string>
+    <string name="preset_pop_desc">Punchy overshoot on open</string>
+    <string name="preset_glide">Glide</string>
+    <string name="preset_glide_desc">Long decelerating glide</string>
+    <string name="preset_anticipate">Anticipate</string>
+    <string name="preset_anticipate_desc">Winds up before opening</string>
+    <string name="preset_bounce">Bounce</string>
+    <string name="preset_bounce_desc">Drops and bounces into place</string>
+    <string name="preset_cinematic">Cinematic</string>
+    <string name="preset_cinematic_desc">Smooth emphasized curve</string>
+    <string name="preset_linear">Linear</string>
+    <string name="preset_linear_desc">Constant speed, no easing</string>
 </resources>
