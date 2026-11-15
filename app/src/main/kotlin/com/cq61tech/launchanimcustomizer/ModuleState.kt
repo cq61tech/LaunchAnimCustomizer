@@ -18,7 +18,7 @@ object ModuleState : XposedServiceHelper.OnServiceListener {
             FrameworkInfo(
                 service.getFrameworkName(),
                 service.getFrameworkVersion(),
-                service.getAPIVersion()
+                service.getApiVersion()
             )
         }.getOrNull()
         info = details ?: FrameworkInfo("LSPosed", "", 0)

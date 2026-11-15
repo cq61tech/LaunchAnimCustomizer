@@ -17,7 +17,8 @@ class LauncherHooks(
 
     fun install() {
         attempt("close spring") { hookClose() }
-        attempt("open spring") { hookOpen() }
+        attempt("open animation") { hookOpenRunner() }
+        attempt("container spring") { hookOpen() }
     }
 
     private fun attempt(name: String, block: () -> Unit) {
@@ -65,6 +66,47 @@ class LauncherHooks(
                 }
             } catch (t: Throwable) {
                 Log.e(TAG, "close spring override failed", t)
+            }
+            chain.proceed()
+        }
+    }
+
+    private var originalPrimary: Any? = null
+    private var originalHorizontal: Any? = null
+
+    private fun hookOpenRunner() {
+        val runner = loader.loadClass(
+            "com.android.launcher3.QuickstepTransitionManager\$AppLaunchAnimationRunner"
+        )
+        val manager = loader.loadClass("com.android.launcher3.QuickstepTransitionManager")
+        val outer = field(runner, "this\$0")
+        val primary = field(manager, "mOpeningInterpolator")
+        val horizontal = field(manager, "mOpeningXInterpolator")
+        val start = runner.declaredMethods.first {
+            it.name == "onAnimationStart" && !it.isSynthetic && !it.isBridge
+        }
+        module.hook(start).intercept { chain ->
+            try {
+                val owner = outer.get(chain.thisObject)
+                if (owner != null) {
+                    if (originalPrimary == null) {
+                        originalPrimary = primary.get(owner)
+                        originalHorizontal = horizontal.get(owner)
+                    }
+                    val config = current()
+                    if (active(config)) {
+                        val spring = config.open
+                        val curve = SpringInterpolator(spring.stiffness, spring.damping)
+                        primary.set(owner, curve)
+                        horizontal.set(owner, curve)
+                        note("open curve ${spring.stiffness} / ${spring.damping}")
+                    } else {
+                        primary.set(owner, originalPrimary)
+                        horizontal.set(owner, originalHorizontal)
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.e(TAG, "open curve override failed", t)
             }
             chain.proceed()
         }

@@ -8,6 +8,7 @@ import io.github.libxposed.api.XposedModuleInterface
 class ModuleMain : XposedModule() {
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
         if (param.packageName !in TARGETS) return
+        Log.i(TAG, "loaded in ${param.packageName}")
         runCatching {
             val prefs = getRemotePreferences(Keys.GROUP)
             LauncherHooks(this, param.classLoader, prefs).install()
