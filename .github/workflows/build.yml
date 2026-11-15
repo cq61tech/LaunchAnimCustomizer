@@ -1,0 +1,77 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.14.3
+
+      - name: Fetch fonts
+        run: |
+          mkdir -p app/src/main/res/font
+          base=https://raw.githubusercontent.com/google/fonts/main/ofl
+          curl -fsSL --retry 3 -o app/src/main/res/font/nunito.ttf "$base/nunito/Nunito%5Bwght%5D.ttf"
+          curl -fsSL --retry 3 -o app/src/main/res/font/quicksand.ttf "$base/quicksand/Quicksand%5Bwght%5D.ttf"
+          curl -fsSL --retry 3 -o app/src/main/res/font/fredoka.ttf "$base/fredoka/Fredoka%5Bwdth%2Cwght%5D.ttf"
+          ls -l app/src/main/res/font
+
+      - name: Prepare keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          store="$RUNNER_TEMP/release.jks"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$store"
+            pass="$STORE_PASS"
+            alias="$ALIAS"
+            keypass="$KEY_PASS"
+          else
+            pass="launchanim"
+            alias="launchanim"
+            keypass="launchanim"
+            keytool -genkeypair -keystore "$store" -storepass "$pass" -keypass "$keypass" -alias "$alias" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=LaunchAnimCustomizer"
+          fi
+          echo "KEYSTORE_PATH=$store" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=$pass" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=$alias" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$keypass" >> "$GITHUB_ENV"
+
+      - name: Assemble release
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk dist/LaunchAnimCustomizer-${{ github.ref_name }}.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LaunchAnimCustomizer
+          path: dist/*.apk
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
