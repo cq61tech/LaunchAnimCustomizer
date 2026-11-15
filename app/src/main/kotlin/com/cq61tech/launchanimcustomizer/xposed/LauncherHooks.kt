@@ -16,6 +16,8 @@ class LauncherHooks(
     private var logged = 0
 
     fun install() {
+        val seen = current()
+        Log.i(TAG, "config enabled=${seen.enabled} mode=${seen.mode} open=${seen.open} close=${seen.close} keys=${prefs.all.size}")
         attempt("close spring") { hookClose() }
         attempt("open animation") { hookOpenRunner() }
         attempt("container spring") { hookOpen() }
@@ -36,9 +38,9 @@ class LauncherHooks(
         config.enabled && config.mode != Presets.CLASSIC
 
     private fun note(message: String) {
-        if (logged < 40 && current().debug) {
+        if (logged < 12 || (logged < 60 && current().debug)) {
             logged++
-            Log.d(TAG, message)
+            Log.i(TAG, message)
         }
     }
 
@@ -52,6 +54,7 @@ class LauncherHooks(
         val dampingX = field(configClass, "dampingX")
         val dampingY = field(configClass, "dampingY")
         module.hook(constructor).intercept { chain ->
+            note("close constructor fired")
             try {
                 val config = current()
                 val target: Any? = chain.getArg(0)
@@ -86,6 +89,7 @@ class LauncherHooks(
             it.name == "onAnimationStart" && !it.isSynthetic && !it.isBridge
         }
         module.hook(start).intercept { chain ->
+            note("open runner fired")
             try {
                 val owner = outer.get(chain.thisObject)
                 if (owner != null) {
