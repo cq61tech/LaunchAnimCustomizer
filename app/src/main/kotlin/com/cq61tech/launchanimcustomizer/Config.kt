@@ -8,6 +8,7 @@ object Keys {
     const val GROUP = "launchanim"
     const val CONFIG = "config"
     const val USER_PRESETS = "user_presets"
+    const val DOCK = "dock"
 }
 
 object Modes {
@@ -17,16 +18,16 @@ object Modes {
 }
 
 object Limits {
-    const val STIFFNESS_MIN = 50f
-    const val STIFFNESS_MAX = 3000f
-    const val DAMPING_MIN = 0.1f
-    const val DAMPING_MAX = 1.2f
-    const val SPEED_MIN = 0.5f
-    const val SPEED_MAX = 3f
-    const val TENSION_MIN = 0.5f
-    const val TENSION_MAX = 6f
-    const val BEZIER_Y_MIN = -1f
-    const val BEZIER_Y_MAX = 2f
+    const val STIFFNESS_MIN = 20f
+    const val STIFFNESS_MAX = 5000f
+    const val DAMPING_MIN = 0.05f
+    const val DAMPING_MAX = 2f
+    const val SPEED_MIN = 0.25f
+    const val SPEED_MAX = 4f
+    const val TENSION_MIN = 0.2f
+    const val TENSION_MAX = 10f
+    const val BEZIER_Y_MIN = -2f
+    const val BEZIER_Y_MAX = 3f
 }
 
 enum class Curve { SPRING, OVERSHOOT, ANTICIPATE, BOUNCE, DECELERATE, EASE, BEZIER, LINEAR }

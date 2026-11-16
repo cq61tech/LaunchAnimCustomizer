@@ -550,31 +550,3 @@ private fun SpringSliders(spring: Spring, onChange: (Spring) -> Unit) {
         onChange = { onChange(spring.copy(damping = it)) }
     )
 }
-
-@Composable
-private fun LabeledSlider(
-    label: String,
-    value: Float,
-    display: String,
-    range: ClosedFloatingPointRange<Float>,
-    onChange: (Float) -> Unit
-) {
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = display,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-        Slider(value = value.coerceIn(range), onValueChange = onChange, valueRange = range)
-    }
-}

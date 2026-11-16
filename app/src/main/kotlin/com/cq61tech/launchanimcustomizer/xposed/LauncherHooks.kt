@@ -1,5 +1,6 @@
 package com.cq61tech.launchanimcustomizer.xposed
 
+import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import com.cq61tech.launchanimcustomizer.Config
@@ -23,6 +24,9 @@ class LauncherHooks(
     private var originalPrimary: Any? = null
     private var originalHorizontal: Any? = null
     private var logged = 0
+
+    @Volatile
+    private var context: Context? = null
 
     fun install() {
         val seen = current().config
@@ -51,7 +55,7 @@ class LauncherHooks(
     }
 
     private fun note(message: String) {
-        if (logged < 12 || (logged < 80 && current().config.debug)) {
+        if (logged < 24 || (logged < 80 && current().config.debug)) {
             logged++
             Log.i(TAG, message)
         }
@@ -101,6 +105,8 @@ class LauncherHooks(
         check(starts.isNotEmpty()) { "start not found" }
         starts.forEach { method ->
             module.hook(method).intercept { chain ->
+                val first: Any? = chain.args.firstOrNull()
+                if (first is Context) context = first.applicationContext
                 closeCounter.set(IntArray(1))
                 try {
                     chain.proceed()
@@ -115,12 +121,13 @@ class LauncherHooks(
             if (state == null || original !is Float) {
                 original
             } else {
-                tune(state, original)
+                val id: Any? = chain.args.firstOrNull()
+                tune(state, original, if (id is Int) id else 0)
             }
         }
     }
 
-    private fun tune(state: IntArray, value: Float): Float {
+    private fun tune(state: IntArray, value: Float, id: Int): Float {
         state[0]++
         val index = state[0]
         val config = current().config
@@ -139,8 +146,13 @@ class LauncherHooks(
             !stiffness && value <= 5f -> axis.damping
             else -> value
         }
-        if (result != value) note("close #$index $value -> $result")
+        note("close #$index ${resourceName(id)} $value -> $result")
         return result
+    }
+
+    private fun resourceName(id: Int): String {
+        val owner = context ?: return id.toString()
+        return runCatching { owner.resources.getResourceEntryName(id) }.getOrDefault(id.toString())
     }
 
     private fun field(owner: Class<*>, name: String): Field =

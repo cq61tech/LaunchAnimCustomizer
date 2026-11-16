@@ -7,3 +7,4 @@
     static void checkNotNullParameter(...);
     static void checkNotNullExpressionValue(...);
 }
+-keepclassmembers enum com.cq61tech.launchanimcustomizer.Curve { *; }

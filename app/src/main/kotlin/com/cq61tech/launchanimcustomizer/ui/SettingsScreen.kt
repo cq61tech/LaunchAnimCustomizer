@@ -33,11 +33,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.cq61tech.launchanimcustomizer.BuildConfig
+import com.cq61tech.launchanimcustomizer.DockLimits
 import com.cq61tech.launchanimcustomizer.R
 import com.cq61tech.launchanimcustomizer.SettingsStore
 import com.cq61tech.launchanimcustomizer.util.Backup
 import com.cq61tech.launchanimcustomizer.util.Root
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @Composable
 fun SettingsScreen() {
@@ -99,6 +101,8 @@ fun SettingsScreen() {
                 Text(stringResource(R.string.restart_systemui))
             }
         }
+
+        DockCard()
 
         SectionCard {
             SectionTitle(stringResource(R.string.backup_title))
@@ -189,6 +193,69 @@ fun SettingsScreen() {
 }
 
 @Composable
+private fun DockCard() {
+    val dock = SettingsStore.dock
+    SectionCard {
+        SectionTitle(stringResource(R.string.dock_title))
+        SwitchRow(
+            title = stringResource(R.string.dock_floating),
+            description = stringResource(R.string.dock_floating_desc),
+            checked = dock.floating,
+            onChange = { value -> SettingsStore.updateDock { it.copy(floating = value) } }
+        )
+        LabeledSlider(
+            label = stringResource(R.string.dock_width),
+            value = dock.width,
+            display = "${(dock.width * 100f).roundToInt()}%",
+            range = DockLimits.WIDTH_MIN..DockLimits.WIDTH_MAX,
+            enabled = dock.floating,
+            onChange = { value -> SettingsStore.updateDock { it.copy(width = value) } }
+        )
+        LabeledSlider(
+            label = stringResource(R.string.dock_height),
+            value = dock.height,
+            display = "${dock.height.roundToInt()} dp",
+            range = DockLimits.HEIGHT_MIN..DockLimits.HEIGHT_MAX,
+            onChange = { value -> SettingsStore.updateDock { it.copy(height = value) } }
+        )
+        LabeledSlider(
+            label = stringResource(R.string.dock_opacity),
+            value = dock.opacity,
+            display = "${(dock.opacity * 100f).roundToInt()}%",
+            range = DockLimits.OPACITY_MIN..DockLimits.OPACITY_MAX,
+            onChange = { value -> SettingsStore.updateDock { it.copy(opacity = value) } }
+        )
+        LabeledSlider(
+            label = stringResource(R.string.dock_text),
+            value = dock.textSize,
+            display = "${dock.textSize.roundToInt()} sp",
+            range = DockLimits.TEXT_MIN..DockLimits.TEXT_MAX,
+            onChange = { value -> SettingsStore.updateDock { it.copy(textSize = value) } }
+        )
+        LabeledSlider(
+            label = stringResource(R.string.dock_bottom),
+            value = dock.bottom,
+            display = "${dock.bottom.roundToInt()} dp",
+            range = DockLimits.BOTTOM_MIN..DockLimits.BOTTOM_MAX,
+            enabled = dock.floating,
+            onChange = { value -> SettingsStore.updateDock { it.copy(bottom = value) } }
+        )
+        SwitchRow(
+            title = stringResource(R.string.dock_hide),
+            description = stringResource(R.string.dock_hide_desc),
+            checked = dock.hideOnScroll,
+            onChange = { value -> SettingsStore.updateDock { it.copy(hideOnScroll = value) } }
+        )
+        SwitchRow(
+            title = stringResource(R.string.dock_labels),
+            description = "",
+            checked = dock.labels,
+            onChange = { value -> SettingsStore.updateDock { it.copy(labels = value) } }
+        )
+    }
+}
+
+@Composable
 private fun SwitchRow(
     title: String,
     description: String,
@@ -206,11 +273,13 @@ private fun SwitchRow(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (description.isNotEmpty()) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         Switch(checked = checked, onCheckedChange = onChange)
     }

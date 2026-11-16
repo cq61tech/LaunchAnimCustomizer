@@ -11,7 +11,8 @@ An LSPosed module that lets you tune the spring physics of the launcher open and
 - Live preview that plays your opening and closing settings
 - Material 3 interface with dynamic color
 - Backup and restore of your settings
-- English and Turkish, following the system language
+- Adjustable bottom bar: floating or docked, width, height, opacity, text size, distance from bottom, hide on scroll and labels
+- 18 languages that follow the system language: English, Turkish, Russian, German, French, Spanish, Italian, Portuguese, Dutch, Polish, Ukrainian, Arabic, Hindi, Indonesian, Chinese (Simplified), Korean, Japanese and Vietnamese
 
 ## Requirements
 

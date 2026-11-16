@@ -19,6 +19,9 @@ object SettingsStore {
     var userPresets by mutableStateOf<List<UserPreset>>(emptyList())
         private set
 
+    var dock by mutableStateOf(DockSettings())
+        private set
+
     val dirty: Boolean get() = draft != saved
 
     fun load(context: Context) {
@@ -26,6 +29,12 @@ object SettingsStore {
         saved = Config.fromRaw(local.getString(Keys.CONFIG, null))
         draft = saved
         userPresets = userPresetsFromRaw(local.getString(Keys.USER_PRESETS, null))
+        dock = DockSettings.fromRaw(local.getString(Keys.DOCK, null))
+    }
+
+    fun updateDock(change: (DockSettings) -> DockSettings) {
+        dock = change(dock)
+        local.edit().putString(Keys.DOCK, dock.toRaw()).apply()
     }
 
     fun attachRemote(prefs: SharedPreferences?) {
