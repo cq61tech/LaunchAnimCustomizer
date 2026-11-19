@@ -37,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,13 +70,25 @@ import kotlin.math.roundToInt
 fun CustomizeScreen() {
     val draft = SettingsStore.draft
     val context = LocalContext.current
+    var advanced by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         PreviewCard(draft)
         EnableCard(draft)
+        TuningCard(draft)
         PresetsCard(draft)
         UserPresetsCard(draft)
-        OpenCard(draft.open)
-        CloseCard(draft.close)
+        SectionCard {
+            ToggleRow(
+                title = stringResource(R.string.advanced_title),
+                description = stringResource(R.string.advanced_desc),
+                checked = advanced,
+                onChange = { advanced = it }
+            )
+        }
+        if (advanced) {
+            OpenCard(draft.open)
+            CloseCard(draft.close)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
                 onClick = {
@@ -97,6 +110,32 @@ fun CustomizeScreen() {
                 Text(stringResource(R.string.reset))
             }
         }
+    }
+}
+
+@Composable
+private fun TuningCard(config: Config) {
+    SectionCard {
+        SectionTitle(stringResource(R.string.tuning_title))
+        val word = when {
+            config.speed < 40f -> stringResource(R.string.speed_slow)
+            config.speed > 60f -> stringResource(R.string.speed_fast)
+            else -> stringResource(R.string.speed_moderate)
+        }
+        LabeledSlider(
+            label = stringResource(R.string.speed_label),
+            value = config.speed,
+            display = "${config.speed.roundToInt()} · $word",
+            range = Limits.LEVEL_MIN..Limits.LEVEL_MAX,
+            onChange = { value -> SettingsStore.edit { it.copy(speed = value) } }
+        )
+        LabeledSlider(
+            label = stringResource(R.string.blur_label),
+            value = config.blur,
+            display = pct(config.blur),
+            range = Limits.BLUR_MIN..Limits.BLUR_MAX,
+            onChange = { value -> SettingsStore.edit { it.copy(blur = value) } }
+        )
     }
 }
 
@@ -139,23 +178,25 @@ private fun PreviewCard(config: Config) {
     val classic = config.mode == Modes.CLASSIC
     val open = if (classic) OpenSettings() else config.open
     val close = if (classic) CloseSettings() else config.close
+    val factor = config.speedFactor
+    val openDuration = open.duration / factor
     val driver = remember { Animatable(0f) }
     val closeX = remember { Animatable(0f) }
     val closeY = remember { Animatable(0f) }
     val closeScale = remember { Animatable(0f) }
     var closing by remember { mutableStateOf(false) }
-    val mainFunction = remember(open) { CurveFunction(open.main, open.duration) }
-    val horizontalFunction = remember(open) { CurveFunction(open.horizontal ?: open.main, open.duration) }
-    val cornerFunction = remember(open) { CurveFunction(open.corner ?: open.main, open.duration) }
+    val mainFunction = remember(open, openDuration) { CurveFunction(open.main, openDuration) }
+    val horizontalFunction = remember(open, openDuration) { CurveFunction(open.horizontal ?: open.main, openDuration) }
+    val cornerFunction = remember(open, openDuration) { CurveFunction(open.corner ?: open.main, openDuration) }
 
-    LaunchedEffect(open, close) {
+    LaunchedEffect(open, close, factor) {
         while (true) {
             closing = false
             driver.snapTo(0f)
             delay(350)
             driver.animateTo(
                 1f,
-                tween(durationMillis = open.duration.roundToInt().coerceAtLeast(40), easing = LinearEasing)
+                tween(durationMillis = openDuration.roundToInt().coerceAtLeast(30), easing = LinearEasing)
             )
             delay(700)
             closeX.snapTo(1f)
@@ -163,14 +204,14 @@ private fun PreviewCard(config: Config) {
             closeScale.snapTo(1f)
             closing = true
             coroutineScope {
-                launch { closeX.animateTo(0f, springFor(close.x, close.speed)) }
+                launch { closeX.animateTo(0f, springFor(close.x, factor)) }
                 launch {
-                    closeY.animateTo(0f, springFor(if (close.split) close.y else close.x, close.speed))
+                    closeY.animateTo(0f, springFor(if (close.split) close.y else close.x, factor))
                 }
                 launch {
                     closeScale.animateTo(
                         0f,
-                        springFor(if (close.split) close.scale else close.x, close.speed)
+                        springFor(if (close.split) close.scale else close.x, factor)
                     )
                 }
             }
@@ -215,8 +256,10 @@ private fun PreviewCard(config: Config) {
                 val ps = if (isClosing) closeScale.value else mainFunction.at(t)
                 val pr = if (isClosing) closeScale.value else cornerFunction.at(t)
                 val roundness = if (isClosing) close.roundness else open.roundness
-                val startX = cell + (cell - iconSize) / 2f
-                val startY = gridTop + cell
+                val pullX = if (isClosing) 1f else open.originX
+                val pullY = if (isClosing) 1f else open.originY
+                val startX = (cell + (cell - iconSize) / 2f) * pullX
+                val startY = (gridTop + cell) * pullY
                 val width = lerp(iconSize, size.width, ps).coerceAtLeast(0f)
                 val height = lerp(iconSize, size.height, ps).coerceAtLeast(0f)
                 val left = lerp(startX, 0f, px)
@@ -539,6 +582,25 @@ private fun OpenCard(open: OpenSettings) {
             onChange = { value -> SettingsStore.edit { it.editOpen { o -> o.copy(shadow = value) } } }
         )
         LabeledSlider(
+            label = stringResource(R.string.origin_x),
+            value = open.originX,
+            display = pct(open.originX),
+            range = Limits.ORIGIN_MIN..Limits.ORIGIN_MAX,
+            onChange = { value -> SettingsStore.edit { it.editOpen { o -> o.copy(originX = value) } } }
+        )
+        LabeledSlider(
+            label = stringResource(R.string.origin_y),
+            value = open.originY,
+            display = pct(open.originY),
+            range = Limits.ORIGIN_MIN..Limits.ORIGIN_MAX,
+            onChange = { value -> SettingsStore.edit { it.editOpen { o -> o.copy(originY = value) } } }
+        )
+        Text(
+            text = stringResource(R.string.origin_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        LabeledSlider(
             label = stringResource(R.string.fade_start),
             value = open.fadeStart,
             display = pct(open.fadeStart),
@@ -589,18 +651,6 @@ private fun CloseCard(close: CloseSettings) {
                 SettingsStore.edit { it.editClose { c -> c.copy(x = value) } }
             }
         }
-        LabeledSlider(
-            label = stringResource(R.string.speed_label),
-            value = close.speed,
-            display = "%.2fx".format(close.speed),
-            range = Limits.SPEED_MIN..Limits.SPEED_MAX,
-            onChange = { value -> SettingsStore.edit { it.editClose { c -> c.copy(speed = value) } } }
-        )
-        Text(
-            text = stringResource(R.string.speed_hint_close),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
         LabeledSlider(
             label = stringResource(R.string.roundness_label),
             value = close.roundness,

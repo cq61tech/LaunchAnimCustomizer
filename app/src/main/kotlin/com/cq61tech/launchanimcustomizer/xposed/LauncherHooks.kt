@@ -49,6 +49,7 @@ class LauncherHooks(
         attempt("open animation") { hookOpen() }
         attempt("open duration") { hookDuration() }
         attempt("open properties") { hookProperties() }
+        attempt("wallpaper blur") { hookBlur() }
         attempt("close springs") { hookClose() }
         attempt("close corners") { hookCloseCorners() }
     }
@@ -108,7 +109,7 @@ class LauncherHooks(
                         originalHorizontal = horizontal.get(owner)
                     }
                     val snap = current()
-                    if (snap.config.active) {
+                    if (snap.config.customized) {
                         primary.set(owner, snap.main)
                         horizontal.set(owner, snap.horizontal)
                         note("open ${snap.config.open.main.curve} ${snap.config.open.duration}ms")
@@ -135,12 +136,15 @@ class LauncherHooks(
             if (opening.get() == true && resizing.get() != true) {
                 val requested: Any? = chain.args.firstOrNull()
                 val snap = current()
-                if (requested == LAUNCH_DURATION && snap.config.active) {
+                val config = snap.config
+                if (requested == LAUNCH_DURATION && (config.customized || config.speedActive)) {
                     val target = chain.thisObject
                     if (target is ValueAnimator) {
+                        val base = if (config.customized) config.open.duration else LAUNCH_DURATION.toFloat()
+                        val scaled = (base / config.speedFactor).toLong().coerceAtLeast(30L)
                         resizing.set(true)
                         try {
-                            target.duration = snap.config.open.duration.toLong()
+                            target.duration = scaled
                         } finally {
                             resizing.remove()
                         }
@@ -180,7 +184,7 @@ class LauncherHooks(
         if (type.superclass?.name != MULTI_VALUE) return
         val snap = current()
         val config = snap.config
-        if (!config.active) return
+        if (!config.customized) return
         val open = config.open
         for (member in type.declaredFields) {
             if (member.type != propClass) continue
@@ -195,9 +199,29 @@ class LauncherHooks(
                 "mCornerRadiusProgress" ->
                     if (open.corner != null) propInterpolator.set(prop, snap.corner)
                 "mShadowRadius" -> scale(prop, open.shadow)
+                "mDx" -> if (open.originX != 1f) pull(prop, open.originX, false)
+                "mDy" -> if (open.originY != 1f) pull(prop, open.originY, false)
+                "mCropRectCenterX" -> if (open.originX != 1f) pull(prop, open.originX, true)
+                "mCropRectCenterY" -> if (open.originY != 1f) pull(prop, open.originY, true)
             }
         }
         note("open props tuned round=${open.roundness} shadow=${open.shadow}")
+    }
+
+    private fun pull(prop: Any, factor: Float, around: Boolean) {
+        val start = propStart.getFloat(prop)
+        val end = if (around) propEnd.getFloat(prop) else 0f
+        propStart.setFloat(prop, end + (start - end) * factor)
+    }
+
+    private fun hookBlur() {
+        val depth = loader.loadClass("com.android.quickstep.util.BaseDepthController")
+        val method = depth.getDeclaredMethod("mapDepthToBlur", java.lang.Float.TYPE)
+        module.hook(method).intercept { chain ->
+            val result = chain.proceed()
+            val config = current().config
+            if (config.blurActive && result is Float) result * config.blur else result
+        }
     }
 
     private fun scale(prop: Any, factor: Float) {
@@ -247,7 +271,7 @@ class LauncherHooks(
                     try {
                         val config = current().config
                         val target = chain.thisObject
-                        if (config.active && target != null) {
+                        if (config.customized && target != null) {
                             val factor = config.close.roundness
                             start.setFloat(target, start.getFloat(target) * factor)
                             end.setFloat(target, end.getFloat(target) * factor)
@@ -267,21 +291,26 @@ class LauncherHooks(
     private fun tune(state: IntArray, value: Float, id: Int): Float {
         state[0]++
         val index = state[0]
+        if (index < 2 || index > 7) return value
         val config = current().config
-        if (!config.active) return value
-        val close = config.close
-        val axis = when (index) {
-            2, 3 -> close.x
-            4, 5 -> if (close.split) close.y else close.x
-            6, 7 -> if (close.split) close.scale else close.x
-            else -> return value
-        }
-        val speed = close.speed.coerceIn(0.2f, 4f)
+        if (!config.customized && !config.speedActive) return value
+        val factor = config.speedFactor
+        val squared = factor * factor
         val stiffness = index % 2 == 0
-        val result = when {
-            stiffness && value >= 5f -> max(1f, axis.stiffness * speed * speed)
-            !stiffness && value <= 5f -> axis.damping
-            else -> value
+        val close = config.close
+        val result = if (!config.customized) {
+            if (stiffness && value >= 5f) value * squared else value
+        } else {
+            val axis = when (index) {
+                2, 3 -> close.x
+                4, 5 -> if (close.split) close.y else close.x
+                else -> if (close.split) close.scale else close.x
+            }
+            when {
+                stiffness && value >= 5f -> max(1f, axis.stiffness * squared)
+                !stiffness && value <= 5f -> axis.damping
+                else -> value
+            }
         }
         note("close #$index ${resourceName(id)} $value -> $result")
         return result

@@ -18,22 +18,27 @@ object Modes {
 }
 
 object Limits {
-    const val STIFFNESS_MIN = 20f
-    const val STIFFNESS_MAX = 5000f
-    const val DAMPING_MIN = 0.05f
-    const val DAMPING_MAX = 2f
-    const val SPEED_MIN = 0.25f
-    const val SPEED_MAX = 4f
+    const val STIFFNESS_MIN = 5f
+    const val STIFFNESS_MAX = 10000f
+    const val DAMPING_MIN = 0.02f
+    const val DAMPING_MAX = 3f
     const val TENSION_MIN = 0.2f
-    const val TENSION_MAX = 10f
-    const val BEZIER_Y_MIN = -2f
-    const val BEZIER_Y_MAX = 3f
-    const val DURATION_MIN = 80f
-    const val DURATION_MAX = 2000f
+    const val TENSION_MAX = 12f
+    const val BEZIER_Y_MIN = -3f
+    const val BEZIER_Y_MAX = 4f
+    const val DURATION_MIN = 40f
+    const val DURATION_MAX = 4000f
     const val ROUNDNESS_MIN = 0f
-    const val ROUNDNESS_MAX = 3f
+    const val ROUNDNESS_MAX = 4f
     const val SHADOW_MIN = 0f
-    const val SHADOW_MAX = 4f
+    const val SHADOW_MAX = 6f
+    const val BLUR_MIN = 0f
+    const val BLUR_MAX = 5f
+    const val ORIGIN_MIN = -1f
+    const val ORIGIN_MAX = 2.5f
+    const val LEVEL_MIN = 0f
+    const val LEVEL_MAX = 100f
+    const val LEVEL_DEFAULT = 50f
 }
 
 enum class Curve { SPRING, OVERSHOOT, ANTICIPATE, BOUNCE, DECELERATE, EASE, BEZIER, LINEAR }
@@ -58,7 +63,9 @@ data class OpenSettings(
     val roundness: Float = 1f,
     val shadow: Float = 1f,
     val fadeStart: Float = 0.05f,
-    val fadeEnd: Float = 0.1f
+    val fadeEnd: Float = 0.1f,
+    val originX: Float = 1f,
+    val originY: Float = 1f
 )
 
 data class CloseSettings(
@@ -66,7 +73,6 @@ data class CloseSettings(
     val y: Spring = x,
     val scale: Spring = x,
     val split: Boolean = false,
-    val speed: Float = 1f,
     val roundness: Float = 1f
 )
 
@@ -75,14 +81,16 @@ data class Preset(
     @StringRes val name: Int,
     @StringRes val description: Int,
     val open: OpenSettings?,
-    val close: CloseSettings?
+    val close: CloseSettings?,
+    val blur: Float = 1f
 )
 
 data class UserPreset(
     val id: String,
     val name: String,
     val open: OpenSettings,
-    val close: CloseSettings
+    val close: CloseSettings,
+    val blur: Float = 1f
 )
 
 data class Config(
@@ -90,18 +98,27 @@ data class Config(
     val mode: String = Modes.CLASSIC,
     val open: OpenSettings = OpenSettings(),
     val close: CloseSettings = CloseSettings(),
-    val debug: Boolean = false
+    val debug: Boolean = false,
+    val speed: Float = Limits.LEVEL_DEFAULT,
+    val blur: Float = 1f
 ) {
-    val active: Boolean get() = enabled && mode != Modes.CLASSIC
+    val customized: Boolean get() = enabled && mode != Modes.CLASSIC
+    val speedActive: Boolean get() = enabled && speed != Limits.LEVEL_DEFAULT
+    val blurActive: Boolean get() = enabled && blur != 1f
+    val speedFactor: Float get() = Math.pow(2.0, ((speed - Limits.LEVEL_DEFAULT) / 25f).toDouble()).toFloat()
 
     fun withPreset(preset: Preset): Config {
-        val open = preset.open ?: return copy(mode = preset.id)
-        val close = preset.close ?: return copy(mode = preset.id)
-        return copy(mode = preset.id, open = open, close = close)
+        val open = preset.open ?: return copy(mode = preset.id, blur = preset.blur)
+        val close = preset.close ?: return copy(mode = preset.id, blur = preset.blur)
+        return copy(mode = preset.id, open = open, close = close, blur = preset.blur)
     }
 
-    fun withUserPreset(preset: UserPreset): Config =
-        copy(mode = Modes.USER_PREFIX + preset.id, open = preset.open, close = preset.close)
+    fun withUserPreset(preset: UserPreset): Config = copy(
+        mode = Modes.USER_PREFIX + preset.id,
+        open = preset.open,
+        close = preset.close,
+        blur = preset.blur
+    )
 
     fun editOpen(change: (OpenSettings) -> OpenSettings): Config =
         copy(mode = Modes.CUSTOM, open = change(open))
@@ -115,6 +132,8 @@ data class Config(
         .put("open", open.toJson())
         .put("close", close.toJson())
         .put("debug", debug)
+        .put("speed", speed.toDouble())
+        .put("blur", blur.toDouble())
         .toString()
 
     companion object {
@@ -127,7 +146,9 @@ data class Config(
                     mode = node.optString("mode", Modes.CLASSIC),
                     open = openFrom(node.optJSONObject("open")),
                     close = closeFrom(node.optJSONObject("close")),
-                    debug = node.optBoolean("debug", false)
+                    debug = node.optBoolean("debug", false),
+                    speed = node.optDouble("speed", Limits.LEVEL_DEFAULT.toDouble()).toFloat(),
+                    blur = node.optDouble("blur", 1.0).toFloat()
                 )
             }.getOrNull()
         }
@@ -167,6 +188,8 @@ fun OpenSettings.toJson(): JSONObject {
         .put("shadow", shadow.toDouble())
         .put("fadeStart", fadeStart.toDouble())
         .put("fadeEnd", fadeEnd.toDouble())
+        .put("originX", originX.toDouble())
+        .put("originY", originY.toDouble())
     horizontal?.let { node.put("horizontal", it.toJson()) }
     corner?.let { node.put("corner", it.toJson()) }
     return node
@@ -177,7 +200,6 @@ fun CloseSettings.toJson(): JSONObject = JSONObject()
     .put("y", y.toJson())
     .put("scale", scale.toJson())
     .put("split", split)
-    .put("speed", speed.toDouble())
     .put("roundness", roundness.toDouble())
 
 fun curveFrom(node: JSONObject?): CurveSpec {
@@ -207,7 +229,9 @@ fun openFrom(node: JSONObject?): OpenSettings {
         roundness = node.floatOr("roundness", base.roundness),
         shadow = node.floatOr("shadow", base.shadow),
         fadeStart = node.floatOr("fadeStart", base.fadeStart),
-        fadeEnd = node.floatOr("fadeEnd", base.fadeEnd)
+        fadeEnd = node.floatOr("fadeEnd", base.fadeEnd),
+        originX = node.floatOr("originX", base.originX),
+        originY = node.floatOr("originY", base.originY)
     )
 }
 
@@ -220,7 +244,6 @@ fun closeFrom(node: JSONObject?): CloseSettings {
         y = node.springOr("y", x),
         scale = node.springOr("scale", x),
         split = node.optBoolean("split", false),
-        speed = node.floatOr("speed", base.speed),
         roundness = node.floatOr("roundness", base.roundness)
     )
 }
@@ -234,6 +257,7 @@ fun userPresetsToRaw(list: List<UserPreset>): String {
                 .put("name", it.name)
                 .put("open", it.open.toJson())
                 .put("close", it.close.toJson())
+                .put("blur", it.blur.toDouble())
         )
     }
     return array.toString()
@@ -249,7 +273,8 @@ fun userPresetsFromRaw(text: String?): List<UserPreset> {
                 id = node.getString("id"),
                 name = node.getString("name"),
                 open = openFrom(node.optJSONObject("open")),
-                close = closeFrom(node.optJSONObject("close"))
+                close = closeFrom(node.optJSONObject("close")),
+                blur = node.optDouble("blur", 1.0).toFloat()
             )
         }
     }.getOrDefault(emptyList())

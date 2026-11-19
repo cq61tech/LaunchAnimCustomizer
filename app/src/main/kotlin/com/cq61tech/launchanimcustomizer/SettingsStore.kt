@@ -67,7 +67,7 @@ object SettingsStore {
     fun saveUserPreset(name: String) {
         val clean = name.trim()
         if (clean.isEmpty()) return
-        val preset = UserPreset(System.currentTimeMillis().toString(), clean, draft.open, draft.close)
+        val preset = UserPreset(System.currentTimeMillis().toString(), clean, draft.open, draft.close, draft.blur)
         userPresets = userPresets + preset
         local.edit().putString(Keys.USER_PRESETS, userPresetsToRaw(userPresets)).apply()
         draft = draft.copy(mode = Modes.USER_PREFIX + preset.id)
