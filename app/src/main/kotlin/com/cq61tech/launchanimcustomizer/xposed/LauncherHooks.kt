@@ -1,11 +1,12 @@
 package com.cq61tech.launchanimcustomizer.xposed
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import android.view.animation.Interpolator
 import com.cq61tech.launchanimcustomizer.Config
 import com.cq61tech.launchanimcustomizer.Keys
-import com.cq61tech.launchanimcustomizer.OpenSettings
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Field
 import kotlin.math.max
@@ -15,12 +16,21 @@ class LauncherHooks(
     private val loader: ClassLoader,
     private val prefs: SharedPreferences
 ) {
-    private class Snapshot(val raw: String?, val config: Config, val curve: CurveInterpolator)
+    private class Snapshot(
+        val raw: String?,
+        val config: Config,
+        val main: Interpolator,
+        val horizontal: Interpolator,
+        val corner: Interpolator,
+        val fade: Interpolator
+    )
 
     @Volatile
-    private var snapshot = Snapshot(null, Config(), CurveInterpolator(OpenSettings()))
+    private var snapshot = build(null)
 
     private val closeCounter = ThreadLocal<IntArray?>()
+    private val opening = ThreadLocal<Boolean?>()
+    private val resizing = ThreadLocal<Boolean?>()
     private var originalPrimary: Any? = null
     private var originalHorizontal: Any? = null
     private var logged = 0
@@ -28,11 +38,19 @@ class LauncherHooks(
     @Volatile
     private var context: Context? = null
 
+    private lateinit var propClass: Class<*>
+    private lateinit var propStart: Field
+    private lateinit var propEnd: Field
+    private lateinit var propInterpolator: Field
+
     fun install() {
         val seen = current().config
         Log.i(TAG, "config enabled=${seen.enabled} mode=${seen.mode} keys=${prefs.all.size}")
         attempt("open animation") { hookOpen() }
-        attempt("close animation") { hookClose() }
+        attempt("open duration") { hookDuration() }
+        attempt("open properties") { hookProperties() }
+        attempt("close springs") { hookClose() }
+        attempt("close corners") { hookCloseCorners() }
     }
 
     private fun attempt(name: String, block: () -> Unit) {
@@ -44,18 +62,26 @@ class LauncherHooks(
         }
     }
 
+    private fun build(raw: String?): Snapshot {
+        val config = Config.fromRaw(raw)
+        val open = config.open
+        val main = CurveInterpolator(open.main, open.duration)
+        val horizontal = open.horizontal?.let { CurveInterpolator(it, open.duration) } ?: main
+        val corner = open.corner?.let { CurveInterpolator(it, open.duration) } ?: main
+        return Snapshot(raw, config, main, horizontal, corner, FadeInterpolator(open.fadeStart, open.fadeEnd))
+    }
+
     private fun current(): Snapshot {
         val text = prefs.getString(Keys.CONFIG, null)
         val old = snapshot
         if (text == old.raw) return old
-        val config = Config.fromRaw(text)
-        val fresh = Snapshot(text, config, CurveInterpolator(config.open))
+        val fresh = build(text)
         snapshot = fresh
         return fresh
     }
 
     private fun note(message: String) {
-        if (logged < 24 || (logged < 80 && current().config.debug)) {
+        if (logged < 30 || (logged < 120 && current().config.debug)) {
             logged++
             Log.i(TAG, message)
         }
@@ -73,6 +99,7 @@ class LauncherHooks(
             it.name == "onAnimationStart" && !it.isSynthetic && !it.isBridge
         }
         module.hook(start).intercept { chain ->
+            opening.set(true)
             try {
                 val owner = outer.get(chain.thisObject)
                 if (owner != null) {
@@ -82,9 +109,9 @@ class LauncherHooks(
                     }
                     val snap = current()
                     if (snap.config.active) {
-                        primary.set(owner, snap.curve)
-                        horizontal.set(owner, snap.curve)
-                        note("open curve ${snap.config.open.curve}")
+                        primary.set(owner, snap.main)
+                        horizontal.set(owner, snap.horizontal)
+                        note("open ${snap.config.open.main.curve} ${snap.config.open.duration}ms")
                     } else {
                         primary.set(owner, originalPrimary)
                         horizontal.set(owner, originalHorizontal)
@@ -93,8 +120,89 @@ class LauncherHooks(
             } catch (t: Throwable) {
                 Log.e(TAG, "open override failed", t)
             }
+            try {
+                chain.proceed()
+            } finally {
+                opening.remove()
+            }
+        }
+    }
+
+    private fun hookDuration() {
+        val method = ValueAnimator::class.java.getDeclaredMethod("setDuration", java.lang.Long.TYPE)
+        module.hook(method).intercept { chain ->
+            val result = chain.proceed()
+            if (opening.get() == true && resizing.get() != true) {
+                val requested: Any? = chain.args.firstOrNull()
+                val snap = current()
+                if (requested == LAUNCH_DURATION && snap.config.active) {
+                    val target = chain.thisObject
+                    if (target is ValueAnimator) {
+                        resizing.set(true)
+                        try {
+                            target.duration = snap.config.open.duration.toLong()
+                        } finally {
+                            resizing.remove()
+                        }
+                    }
+                }
+            }
+            result
+        }
+    }
+
+    private fun hookProperties() {
+        propClass = loader.loadClass("com.android.quickstep.util.MultiValueUpdateListener\$FloatProp")
+        propStart = field(propClass, "mStart")
+        propEnd = field(propClass, "mEnd")
+        propInterpolator = field(propClass, "mInterpolator")
+        val method = ValueAnimator::class.java.getDeclaredMethod(
+            "addUpdateListener",
+            ValueAnimator.AnimatorUpdateListener::class.java
+        )
+        module.hook(method).intercept { chain ->
+            if (opening.get() == true) {
+                val listener: Any? = chain.args.firstOrNull()
+                if (listener != null) {
+                    try {
+                        tuneProperties(listener)
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "property override failed", t)
+                    }
+                }
+            }
             chain.proceed()
         }
+    }
+
+    private fun tuneProperties(listener: Any) {
+        val type = listener.javaClass
+        if (type.superclass?.name != MULTI_VALUE) return
+        val snap = current()
+        val config = snap.config
+        if (!config.active) return
+        val open = config.open
+        for (member in type.declaredFields) {
+            if (member.type != propClass) continue
+            member.isAccessible = true
+            val prop = member.get(listener) ?: continue
+            when (member.name) {
+                "mIconAlpha" -> propInterpolator.set(prop, snap.fade)
+                "mWindowRadius" -> {
+                    if (open.corner != null) propInterpolator.set(prop, snap.corner)
+                    scale(prop, open.roundness)
+                }
+                "mCornerRadiusProgress" ->
+                    if (open.corner != null) propInterpolator.set(prop, snap.corner)
+                "mShadowRadius" -> scale(prop, open.shadow)
+            }
+        }
+        note("open props tuned round=${open.roundness} shadow=${open.shadow}")
+    }
+
+    private fun scale(prop: Any, factor: Float) {
+        propStart.setFloat(prop, propStart.getFloat(prop) * factor)
+        propEnd.setFloat(prop, propEnd.getFloat(prop) * factor)
     }
 
     private fun hookClose() {
@@ -125,6 +233,35 @@ class LauncherHooks(
                 tune(state, original, if (id is Int) id else 0)
             }
         }
+    }
+
+    private fun hookCloseCorners() {
+        var hooked = 0
+        for (name in CLOSE_RUNNERS) {
+            val type = runCatching { loader.loadClass(name) }.getOrNull() ?: continue
+            val start = runCatching { field(type, "mStartRadius") }.getOrNull() ?: continue
+            val end = runCatching { field(type, "mEndRadius") }.getOrNull() ?: continue
+            for (constructor in type.declaredConstructors) {
+                module.hook(constructor).intercept { chain ->
+                    val result = chain.proceed()
+                    try {
+                        val config = current().config
+                        val target = chain.thisObject
+                        if (config.active && target != null) {
+                            val factor = config.close.roundness
+                            start.setFloat(target, start.getFloat(target) * factor)
+                            end.setFloat(target, end.getFloat(target) * factor)
+                            note("close corners x$factor")
+                        }
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "close corner override failed", t)
+                    }
+                    result
+                }
+                hooked++
+            }
+        }
+        check(hooked > 0) { "no close runner found" }
     }
 
     private fun tune(state: IntArray, value: Float, id: Int): Float {
@@ -160,5 +297,11 @@ class LauncherHooks(
 
     companion object {
         private const val TAG = ModuleMain.TAG
+        private const val LAUNCH_DURATION = 500L
+        private const val MULTI_VALUE = "com.android.quickstep.util.MultiValueUpdateListener"
+        private val CLOSE_RUNNERS = listOf(
+            "com.android.quickstep.SwipeUpAnimationLogic\$SpringAnimationRunner",
+            "com.android.launcher3.QuickstepTransitionManager\$SpringAnimRunner"
+        )
     }
 }

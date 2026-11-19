@@ -2,7 +2,8 @@ package com.cq61tech.launchanimcustomizer.ui
 
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -51,6 +52,7 @@ import com.cq61tech.launchanimcustomizer.CloseSettings
 import com.cq61tech.launchanimcustomizer.Config
 import com.cq61tech.launchanimcustomizer.Curve
 import com.cq61tech.launchanimcustomizer.CurveFunction
+import com.cq61tech.launchanimcustomizer.CurveSpec
 import com.cq61tech.launchanimcustomizer.Limits
 import com.cq61tech.launchanimcustomizer.Modes
 import com.cq61tech.launchanimcustomizer.OpenSettings
@@ -58,7 +60,9 @@ import com.cq61tech.launchanimcustomizer.Presets
 import com.cq61tech.launchanimcustomizer.R
 import com.cq61tech.launchanimcustomizer.SettingsStore
 import com.cq61tech.launchanimcustomizer.Spring
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
@@ -120,35 +124,56 @@ private fun EnableCard(config: Config) {
     }
 }
 
+private fun springFor(value: Spring, speed: Float): SpringSpec<Float> {
+    val factor = speed.coerceIn(0.2f, 4f)
+    return spring(
+        dampingRatio = value.damping.coerceAtLeast(0.05f),
+        stiffness = (value.stiffness * factor * factor).coerceAtLeast(1f),
+        visibilityThreshold = 0.001f
+    )
+}
+
 @Composable
 private fun PreviewCard(config: Config) {
     val colors = MaterialTheme.colorScheme
-    val progress = remember { Animatable(0f) }
     val classic = config.mode == Modes.CLASSIC
     val open = if (classic) OpenSettings() else config.open
     val close = if (classic) CloseSettings() else config.close
-    val easing = remember(open) {
-        val function = CurveFunction(open)
-        Easing { function.at(it) }
-    }
-    val closeSpring = if (close.split) close.scale else close.x
-    val closeSpeed = close.speed.coerceIn(0.2f, 4f)
-    val closeStiffness = (closeSpring.stiffness * closeSpeed * closeSpeed).coerceAtLeast(1f)
+    val driver = remember { Animatable(0f) }
+    val closeX = remember { Animatable(0f) }
+    val closeY = remember { Animatable(0f) }
+    val closeScale = remember { Animatable(0f) }
+    var closing by remember { mutableStateOf(false) }
+    val mainFunction = remember(open) { CurveFunction(open.main, open.duration) }
+    val horizontalFunction = remember(open) { CurveFunction(open.horizontal ?: open.main, open.duration) }
+    val cornerFunction = remember(open) { CurveFunction(open.corner ?: open.main, open.duration) }
 
     LaunchedEffect(open, close) {
-        progress.snapTo(0f)
-        delay(300)
         while (true) {
-            progress.animateTo(1f, tween(durationMillis = 500, easing = easing))
-            delay(700)
-            progress.animateTo(
-                0f,
-                spring(
-                    dampingRatio = closeSpring.damping.coerceAtLeast(0.05f),
-                    stiffness = closeStiffness,
-                    visibilityThreshold = 0.001f
-                )
+            closing = false
+            driver.snapTo(0f)
+            delay(350)
+            driver.animateTo(
+                1f,
+                tween(durationMillis = open.duration.roundToInt().coerceAtLeast(40), easing = LinearEasing)
             )
+            delay(700)
+            closeX.snapTo(1f)
+            closeY.snapTo(1f)
+            closeScale.snapTo(1f)
+            closing = true
+            coroutineScope {
+                launch { closeX.animateTo(0f, springFor(close.x, close.speed)) }
+                launch {
+                    closeY.animateTo(0f, springFor(if (close.split) close.y else close.x, close.speed))
+                }
+                launch {
+                    closeScale.animateTo(
+                        0f,
+                        springFor(if (close.split) close.scale else close.x, close.speed)
+                    )
+                }
+            }
             delay(900)
         }
     }
@@ -183,14 +208,20 @@ private fun PreviewCard(config: Config) {
                         )
                     }
                 }
-                val p = progress.value
+                val t = driver.value
+                val isClosing = closing
+                val px = if (isClosing) closeX.value else horizontalFunction.at(t)
+                val py = if (isClosing) closeY.value else mainFunction.at(t)
+                val ps = if (isClosing) closeScale.value else mainFunction.at(t)
+                val pr = if (isClosing) closeScale.value else cornerFunction.at(t)
+                val roundness = if (isClosing) close.roundness else open.roundness
                 val startX = cell + (cell - iconSize) / 2f
                 val startY = gridTop + cell
-                val width = lerp(iconSize, size.width, p).coerceAtLeast(0f)
-                val height = lerp(iconSize, size.height, p).coerceAtLeast(0f)
-                val left = lerp(startX, 0f, p)
-                val top = lerp(startY, 0f, p)
-                val radius = lerp(iconSize * 0.3f, 36f, p.coerceIn(0f, 1f))
+                val width = lerp(iconSize, size.width, ps).coerceAtLeast(0f)
+                val height = lerp(iconSize, size.height, ps).coerceAtLeast(0f)
+                val left = lerp(startX, 0f, px)
+                val top = lerp(startY, 0f, py)
+                val radius = (lerp(iconSize * 0.3f, 36f, pr.coerceIn(0f, 1f)) * roundness).coerceAtLeast(0f)
                 drawRoundRect(
                     color = colors.primary,
                     topLeft = Offset(left, top),
@@ -355,104 +386,171 @@ private fun curveLabel(curve: Curve): Int = when (curve) {
     Curve.LINEAR -> R.string.curve_linear
 }
 
+private fun pct(value: Float) = "${(value * 100f).roundToInt()}%"
+
+@Composable
+private fun CurveEditor(spec: CurveSpec, onChange: (CurveSpec) -> Unit) {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Curve.entries.forEach { curve ->
+            FilterChip(
+                selected = spec.curve == curve,
+                onClick = { onChange(spec.copy(curve = curve)) },
+                label = { Text(stringResource(curveLabel(curve))) }
+            )
+        }
+    }
+    when (spec.curve) {
+        Curve.SPRING -> SpringSliders(spec.spring) { onChange(spec.copy(spring = it)) }
+        Curve.OVERSHOOT, Curve.ANTICIPATE -> LabeledSlider(
+            label = stringResource(R.string.tension_label),
+            value = spec.tension,
+            display = "%.1f".format(spec.tension),
+            range = Limits.TENSION_MIN..Limits.TENSION_MAX,
+            onChange = { onChange(spec.copy(tension = it)) }
+        )
+        Curve.DECELERATE -> LabeledSlider(
+            label = stringResource(R.string.power_label),
+            value = spec.tension,
+            display = "%.1f".format(spec.tension),
+            range = Limits.TENSION_MIN..Limits.TENSION_MAX,
+            onChange = { onChange(spec.copy(tension = it)) }
+        )
+        Curve.BEZIER -> {
+            LabeledSlider(
+                label = stringResource(R.string.bezier_x1),
+                value = spec.x1,
+                display = "%.2f".format(spec.x1),
+                range = 0f..1f,
+                onChange = { onChange(spec.copy(x1 = it)) }
+            )
+            LabeledSlider(
+                label = stringResource(R.string.bezier_y1),
+                value = spec.y1,
+                display = "%.2f".format(spec.y1),
+                range = Limits.BEZIER_Y_MIN..Limits.BEZIER_Y_MAX,
+                onChange = { onChange(spec.copy(y1 = it)) }
+            )
+            LabeledSlider(
+                label = stringResource(R.string.bezier_x2),
+                value = spec.x2,
+                display = "%.2f".format(spec.x2),
+                range = 0f..1f,
+                onChange = { onChange(spec.copy(x2 = it)) }
+            )
+            LabeledSlider(
+                label = stringResource(R.string.bezier_y2),
+                value = spec.y2,
+                display = "%.2f".format(spec.y2),
+                range = Limits.BEZIER_Y_MIN..Limits.BEZIER_Y_MAX,
+                onChange = { onChange(spec.copy(y2 = it)) }
+            )
+        }
+        Curve.BOUNCE, Curve.EASE, Curve.LINEAR -> Unit
+    }
+}
+
+@Composable
+private fun ToggleRow(title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
 @Composable
 private fun OpenCard(open: OpenSettings) {
     SectionCard {
         SectionTitle(stringResource(R.string.open_label))
-        Text(
-            text = stringResource(R.string.curve_label),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface
+        LabeledSlider(
+            label = stringResource(R.string.open_duration),
+            value = open.duration,
+            display = "${open.duration.roundToInt()} ms",
+            range = Limits.DURATION_MIN..Limits.DURATION_MAX,
+            onChange = { value -> SettingsStore.edit { it.editOpen { o -> o.copy(duration = value) } } }
         )
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Curve.entries.forEach { curve ->
-                FilterChip(
-                    selected = open.curve == curve,
-                    onClick = {
-                        SettingsStore.edit { it.editOpen { o -> o.copy(curve = curve) } }
-                    },
-                    label = { Text(stringResource(curveLabel(curve))) }
-                )
+        AxisTitle(stringResource(R.string.motion_main))
+        CurveEditor(open.main) { value ->
+            SettingsStore.edit { it.editOpen { o -> o.copy(main = value) } }
+        }
+        ToggleRow(
+            title = stringResource(R.string.separate_horizontal_title),
+            description = stringResource(R.string.separate_horizontal_desc),
+            checked = open.horizontal != null,
+            onChange = { on ->
+                SettingsStore.edit {
+                    it.editOpen { o -> o.copy(horizontal = if (on) o.main else null) }
+                }
+            }
+        )
+        val horizontal = open.horizontal
+        if (horizontal != null) {
+            AxisTitle(stringResource(R.string.motion_horizontal))
+            CurveEditor(horizontal) { value ->
+                SettingsStore.edit { it.editOpen { o -> o.copy(horizontal = value) } }
             }
         }
-        when (open.curve) {
-            Curve.SPRING -> SpringSliders(open.spring) { value ->
-                SettingsStore.edit { it.editOpen { o -> o.copy(spring = value) } }
-            }
-            Curve.OVERSHOOT, Curve.ANTICIPATE -> LabeledSlider(
-                label = stringResource(R.string.tension_label),
-                value = open.tension,
-                display = "%.1f".format(open.tension),
-                range = Limits.TENSION_MIN..Limits.TENSION_MAX,
-                onChange = { value ->
-                    SettingsStore.edit { it.editOpen { o -> o.copy(tension = value) } }
+        ToggleRow(
+            title = stringResource(R.string.separate_radius_title),
+            description = stringResource(R.string.separate_radius_desc),
+            checked = open.corner != null,
+            onChange = { on ->
+                SettingsStore.edit {
+                    it.editOpen { o -> o.copy(corner = if (on) o.main else null) }
                 }
-            )
-            Curve.DECELERATE -> LabeledSlider(
-                label = stringResource(R.string.power_label),
-                value = open.tension,
-                display = "%.1f".format(open.tension),
-                range = Limits.TENSION_MIN..Limits.TENSION_MAX,
-                onChange = { value ->
-                    SettingsStore.edit { it.editOpen { o -> o.copy(tension = value) } }
-                }
-            )
-            Curve.BEZIER -> {
-                LabeledSlider(
-                    label = stringResource(R.string.bezier_x1),
-                    value = open.x1,
-                    display = "%.2f".format(open.x1),
-                    range = 0f..1f,
-                    onChange = { value ->
-                        SettingsStore.edit { it.editOpen { o -> o.copy(x1 = value) } }
-                    }
-                )
-                LabeledSlider(
-                    label = stringResource(R.string.bezier_y1),
-                    value = open.y1,
-                    display = "%.2f".format(open.y1),
-                    range = Limits.BEZIER_Y_MIN..Limits.BEZIER_Y_MAX,
-                    onChange = { value ->
-                        SettingsStore.edit { it.editOpen { o -> o.copy(y1 = value) } }
-                    }
-                )
-                LabeledSlider(
-                    label = stringResource(R.string.bezier_x2),
-                    value = open.x2,
-                    display = "%.2f".format(open.x2),
-                    range = 0f..1f,
-                    onChange = { value ->
-                        SettingsStore.edit { it.editOpen { o -> o.copy(x2 = value) } }
-                    }
-                )
-                LabeledSlider(
-                    label = stringResource(R.string.bezier_y2),
-                    value = open.y2,
-                    display = "%.2f".format(open.y2),
-                    range = Limits.BEZIER_Y_MIN..Limits.BEZIER_Y_MAX,
-                    onChange = { value ->
-                        SettingsStore.edit { it.editOpen { o -> o.copy(y2 = value) } }
-                    }
-                )
             }
-            Curve.BOUNCE, Curve.EASE, Curve.LINEAR -> Unit
+        )
+        val corner = open.corner
+        if (corner != null) {
+            AxisTitle(stringResource(R.string.motion_radius))
+            CurveEditor(corner) { value ->
+                SettingsStore.edit { it.editOpen { o -> o.copy(corner = value) } }
+            }
         }
         LabeledSlider(
-            label = stringResource(R.string.speed_label),
-            value = open.speed,
-            display = "%.2fx".format(open.speed),
-            range = Limits.SPEED_MIN..Limits.SPEED_MAX,
-            onChange = { value ->
-                SettingsStore.edit { it.editOpen { o -> o.copy(speed = value) } }
-            }
+            label = stringResource(R.string.roundness_label),
+            value = open.roundness,
+            display = pct(open.roundness),
+            range = Limits.ROUNDNESS_MIN..Limits.ROUNDNESS_MAX,
+            onChange = { value -> SettingsStore.edit { it.editOpen { o -> o.copy(roundness = value) } } }
         )
-        Text(
-            text = stringResource(R.string.speed_hint_open),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        LabeledSlider(
+            label = stringResource(R.string.shadow_label),
+            value = open.shadow,
+            display = pct(open.shadow),
+            range = Limits.SHADOW_MIN..Limits.SHADOW_MAX,
+            onChange = { value -> SettingsStore.edit { it.editOpen { o -> o.copy(shadow = value) } } }
+        )
+        LabeledSlider(
+            label = stringResource(R.string.fade_start),
+            value = open.fadeStart,
+            display = pct(open.fadeStart),
+            range = 0f..0.95f,
+            onChange = { value -> SettingsStore.edit { it.editOpen { o -> o.copy(fadeStart = value) } } }
+        )
+        LabeledSlider(
+            label = stringResource(R.string.fade_end),
+            value = open.fadeEnd,
+            display = pct(open.fadeEnd),
+            range = 0.05f..1f,
+            onChange = { value -> SettingsStore.edit { it.editOpen { o -> o.copy(fadeEnd = value) } } }
         )
     }
 }
@@ -461,34 +559,18 @@ private fun OpenCard(open: OpenSettings) {
 private fun CloseCard(close: CloseSettings) {
     SectionCard {
         SectionTitle(stringResource(R.string.close_label))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.split_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = stringResource(R.string.split_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Switch(
-                checked = close.split,
-                onCheckedChange = { on ->
-                    SettingsStore.edit { config ->
-                        config.editClose { c ->
-                            if (on) c.copy(split = true, y = c.x, scale = c.x) else c.copy(split = false)
-                        }
+        ToggleRow(
+            title = stringResource(R.string.split_title),
+            description = stringResource(R.string.split_desc),
+            checked = close.split,
+            onChange = { on ->
+                SettingsStore.edit { config ->
+                    config.editClose { c ->
+                        if (on) c.copy(split = true, y = c.x, scale = c.x) else c.copy(split = false)
                     }
                 }
-            )
-        }
+            }
+        )
         if (close.split) {
             AxisTitle(stringResource(R.string.axis_x))
             SpringSliders(close.x) { value ->
@@ -512,14 +594,19 @@ private fun CloseCard(close: CloseSettings) {
             value = close.speed,
             display = "%.2fx".format(close.speed),
             range = Limits.SPEED_MIN..Limits.SPEED_MAX,
-            onChange = { value ->
-                SettingsStore.edit { it.editClose { c -> c.copy(speed = value) } }
-            }
+            onChange = { value -> SettingsStore.edit { it.editClose { c -> c.copy(speed = value) } } }
         )
         Text(
             text = stringResource(R.string.speed_hint_close),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        LabeledSlider(
+            label = stringResource(R.string.roundness_label),
+            value = close.roundness,
+            display = pct(close.roundness),
+            range = Limits.ROUNDNESS_MIN..Limits.ROUNDNESS_MAX,
+            onChange = { value -> SettingsStore.edit { it.editClose { c -> c.copy(roundness = value) } } }
         )
     }
 }

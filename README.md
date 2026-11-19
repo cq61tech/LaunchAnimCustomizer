@@ -4,10 +4,10 @@ An LSPosed module that lets you tune the spring physics of the launcher open and
 
 ## Features
 
-- Twenty ready made themes, plus your own saved themes
-- Opening curves: spring, overshoot, anticipate, bounce, decelerate, ease, custom Bezier and linear
-- Closing springs with stiffness and damping, optionally separate for horizontal, vertical and scale
-- Speed control for both directions
+- Thirty ready made themes, plus your own saved themes
+- Opening: real duration, a main curve, optional separate curves for horizontal travel and corner shape, corner roundness, shadow strength and icon fade timing
+- Curves: spring, overshoot, anticipate, bounce, decelerate, ease, custom Bezier and linear
+- Closing: springs with stiffness and damping, optionally separate for horizontal, vertical and scale, plus speed and corner roundness
 - Live preview that plays your opening and closing settings
 - Material 3 interface with dynamic color
 - Backup and restore of your settings
@@ -25,8 +25,8 @@ An LSPosed module that lets you tune the spring physics of the launcher open and
 
 The module hooks the launcher process.
 
-- Opening from an icon: the launcher drives the window with a 500 ms animator and two interpolators. The module swaps those interpolators for the curve you picked.
-- Closing and return to home: `RectFSpringAnim` reads its spring values through `DynamicResource`. The module replaces the stiffness and damping values while a closing animation starts.
+- Opening from an icon: the launcher drives the window with one animator and a set of per property interpolators. The module swaps the interpolators, scales the animator duration, and adjusts corner radius, shadow and icon fade on the running listener.
+- Closing and return to home: `RectFSpringAnim` reads its spring values through `DynamicResource`. The module replaces the stiffness and damping values while a closing animation starts and scales the corner radii of the close runner.
 
 Settings are shared with the launcher through libxposed remote preferences, so a new value is picked up by the next animation.
 

@@ -6,32 +6,27 @@ import kotlin.math.exp
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-class CurveFunction(private val settings: OpenSettings) {
-    private val speed = settings.speed.coerceIn(0.2f, 4f)
-    private val omega = sqrt(settings.spring.stiffness.coerceAtLeast(1f).toDouble())
-    private val zeta = settings.spring.damping.coerceAtLeast(0f).toDouble()
-    private val tension = settings.tension.coerceAtLeast(0.1f)
-    private val x1 = settings.x1.coerceIn(0f, 1f)
-    private val x2 = settings.x2.coerceIn(0f, 1f)
-    private val y1 = settings.y1
-    private val y2 = settings.y2
-    private val blend = settings.curve == Curve.SPRING || speed < 1f
+class CurveFunction(private val spec: CurveSpec, durationMs: Float) {
+    private val horizon = (durationMs / 1000f).coerceIn(0.05f, 3f).toDouble()
+    private val omega = sqrt(spec.spring.stiffness.coerceAtLeast(1f).toDouble())
+    private val zeta = spec.spring.damping.coerceAtLeast(0f).toDouble()
+    private val tension = spec.tension.coerceAtLeast(0.1f)
+    private val x1 = spec.x1.coerceIn(0f, 1f)
+    private val x2 = spec.x2.coerceIn(0f, 1f)
+    private val y1 = spec.y1
+    private val y2 = spec.y2
 
     fun at(input: Float): Float {
         if (input <= 0f) return 0f
         if (input >= 1f) return 1f
-        val raw = if (settings.curve == Curve.SPRING) {
-            spring(input * HORIZON * speed).toFloat()
-        } else {
-            shaped((input * speed).coerceIn(0f, 1f))
-        }
-        if (!blend) return raw
+        if (spec.curve != Curve.SPRING) return shaped(input)
+        val raw = spring(input * horizon).toFloat()
         val weight = ((input - 0.88f) / 0.12f).coerceIn(0f, 1f)
         val eased = weight * weight * (3f - 2f * weight)
         return raw + (1f - raw) * eased
     }
 
-    private fun shaped(u: Float): Float = when (settings.curve) {
+    private fun shaped(u: Float): Float = when (spec.curve) {
         Curve.OVERSHOOT -> overshoot(u)
         Curve.ANTICIPATE -> anticipate(u)
         Curve.BOUNCE -> bounce(u)
@@ -77,8 +72,7 @@ class CurveFunction(private val settings: OpenSettings) {
         var p = u
         repeat(18) {
             p = (low + high) / 2f
-            val x = cubic(p, x1, x2)
-            if (x < u) low = p else high = p
+            if (cubic(p, x1, x2) < u) low = p else high = p
         }
         return cubic(p, y1, y2)
     }
@@ -101,9 +95,5 @@ class CurveFunction(private val settings: OpenSettings) {
         val slow = -zeta * omega + spread
         val fast = -zeta * omega - spread
         return 1.0 - (fast * exp(slow * time) - slow * exp(fast * time)) / (fast - slow)
-    }
-
-    private companion object {
-        const val HORIZON = 0.5
     }
 }
