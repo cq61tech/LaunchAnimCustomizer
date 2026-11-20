@@ -41,7 +41,19 @@ object Limits {
     const val LEVEL_DEFAULT = 50f
 }
 
-enum class Curve { SPRING, OVERSHOOT, ANTICIPATE, BOUNCE, DECELERATE, EASE, BEZIER, LINEAR }
+enum class Curve {
+    SPRING, OVERSHOOT, ANTICIPATE, BOUNCE, DECELERATE, ACCELERATE,
+    SMOOTH, ELASTIC, STEPS, HOLD, EASE, BEZIER, LINEAR
+}
+
+enum class Category(@StringRes val label: Int) {
+    SYSTEM(R.string.cat_system),
+    FAST(R.string.cat_fast),
+    SPRINGY(R.string.cat_springy),
+    CINEMATIC(R.string.cat_cinematic),
+    PLAYFUL(R.string.cat_playful),
+    SHAPE(R.string.cat_shape)
+}
 
 data class Spring(val stiffness: Float, val damping: Float)
 
@@ -52,7 +64,8 @@ data class CurveSpec(
     val x1: Float = 0.2f,
     val y1: Float = 0f,
     val x2: Float = 0f,
-    val y2: Float = 1f
+    val y2: Float = 1f,
+    val aux: Float = 0.5f
 )
 
 data class OpenSettings(
@@ -78,8 +91,8 @@ data class CloseSettings(
 
 data class Preset(
     val id: String,
-    @StringRes val name: Int,
-    @StringRes val description: Int,
+    val name: String,
+    val category: Category,
     val open: OpenSettings?,
     val close: CloseSettings?,
     val blur: Float = 1f
@@ -179,6 +192,7 @@ fun CurveSpec.toJson(): JSONObject = JSONObject()
     .put("y1", y1.toDouble())
     .put("x2", x2.toDouble())
     .put("y2", y2.toDouble())
+    .put("aux", aux.toDouble())
 
 fun OpenSettings.toJson(): JSONObject {
     val node = JSONObject()
@@ -214,7 +228,8 @@ fun curveFrom(node: JSONObject?): CurveSpec {
         x1 = node.floatOr("x1", base.x1),
         y1 = node.floatOr("y1", base.y1),
         x2 = node.floatOr("x2", base.x2),
-        y2 = node.floatOr("y2", base.y2)
+        y2 = node.floatOr("y2", base.y2),
+        aux = node.floatOr("aux", base.aux)
     )
 }
 

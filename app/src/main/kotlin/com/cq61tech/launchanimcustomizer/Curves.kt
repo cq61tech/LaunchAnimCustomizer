@@ -3,6 +3,8 @@ package com.cq61tech.launchanimcustomizer
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.floor
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -15,12 +17,14 @@ class CurveFunction(private val spec: CurveSpec, durationMs: Float) {
     private val x2 = spec.x2.coerceIn(0f, 1f)
     private val y1 = spec.y1
     private val y2 = spec.y2
+    private val aux = spec.aux
+    private val blends = spec.curve == Curve.SPRING || spec.curve == Curve.ELASTIC
 
     fun at(input: Float): Float {
         if (input <= 0f) return 0f
         if (input >= 1f) return 1f
-        if (spec.curve != Curve.SPRING) return shaped(input)
-        val raw = spring(input * horizon).toFloat()
+        val raw = if (spec.curve == Curve.SPRING) spring(input * horizon).toFloat() else shaped(input)
+        if (!blends) return raw
         val weight = ((input - 0.88f) / 0.12f).coerceIn(0f, 1f)
         val eased = weight * weight * (3f - 2f * weight)
         return raw + (1f - raw) * eased
@@ -31,9 +35,35 @@ class CurveFunction(private val spec: CurveSpec, durationMs: Float) {
         Curve.ANTICIPATE -> anticipate(u)
         Curve.BOUNCE -> bounce(u)
         Curve.DECELERATE -> 1f - Math.pow((1f - u).toDouble(), tension.toDouble()).toFloat()
+        Curve.ACCELERATE -> Math.pow(u.toDouble(), tension.toDouble()).toFloat()
+        Curve.SMOOTH -> smooth(u)
+        Curve.ELASTIC -> (1.0 - exp(-tension * u.toDouble()) * cos(2.0 * Math.PI * aux * u)).toFloat()
+        Curve.STEPS -> steps(u)
+        Curve.HOLD -> hold(u)
         Curve.EASE -> (cos((u + 1f) * Math.PI) / 2.0 + 0.5).toFloat()
         Curve.BEZIER -> bezier(u)
         Curve.LINEAR, Curve.SPRING -> u
+    }
+
+    private fun smooth(u: Float): Float {
+        val p = tension.toDouble()
+        return if (u < 0.5f) {
+            (0.5 * Math.pow(2.0 * u, p)).toFloat()
+        } else {
+            (1.0 - 0.5 * Math.pow(2.0 * (1f - u), p)).toFloat()
+        }
+    }
+
+    private fun steps(u: Float): Float {
+        val count = tension.roundToInt().coerceIn(2, 24)
+        return (floor(u * count) / (count - 1)).coerceAtMost(1f)
+    }
+
+    private fun hold(u: Float): Float {
+        val pause = aux.coerceIn(0f, 0.9f)
+        if (u <= pause) return 0f
+        val local = (u - pause) / (1f - pause)
+        return 1f - Math.pow((1f - local).toDouble(), tension.toDouble()).toFloat()
     }
 
     private fun overshoot(u: Float): Float {

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalLayoutApi::class)
+
 package com.cq61tech.launchanimcustomizer.ui
 
 import android.widget.Toast
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,6 +50,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import com.cq61tech.launchanimcustomizer.CloseSettings
@@ -290,7 +294,6 @@ private fun PreviewCard(config: Config) {
 @Composable
 private fun PresetTile(
     title: String,
-    subtitle: String,
     selected: Boolean,
     modifier: Modifier,
     onClick: () -> Unit
@@ -307,19 +310,16 @@ private fun PresetTile(
             MaterialTheme.colorScheme.surfaceContainerHigh
         }
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
             )
-            if (subtitle.isNotEmpty()) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 }
@@ -328,20 +328,37 @@ private fun PresetTile(
 private fun PresetsCard(config: Config) {
     SectionCard {
         SectionTitle(stringResource(R.string.presets_title))
-        Presets.all.chunked(2).forEach { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                pair.forEach { preset ->
+        Presets.all.groupBy { it.category }.forEach { (category, presets) ->
+            Text(
+                text = stringResource(category.label),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            FlowRow(horizontalSpacing = 8.dp, verticalSpacing = 8.dp) {
+                presets.forEach { preset ->
                     PresetTile(
-                        title = stringResource(preset.name),
-                        subtitle = stringResource(preset.description),
+                        title = preset.name,
                         selected = config.mode == preset.id,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier,
                         onClick = { SettingsStore.edit { it.withPreset(preset) } }
                     )
                 }
-                if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
             }
         }
+    }
+}
+
+@Composable
+private fun FlowRow(
+    horizontalSpacing: Dp,
+    verticalSpacing: Dp,
+    content: @Composable () -> Unit
+) {
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(horizontalSpacing),
+        verticalArrangement = Arrangement.spacedBy(verticalSpacing)
+    ) {
+        content()
     }
 }
 
@@ -368,7 +385,6 @@ private fun UserPresetsCard(config: Config) {
             ) {
                 PresetTile(
                     title = preset.name,
-                    subtitle = "",
                     selected = config.mode == Modes.USER_PREFIX + preset.id,
                     modifier = Modifier.weight(1f),
                     onClick = { SettingsStore.edit { it.withUserPreset(preset) } }
@@ -424,6 +440,11 @@ private fun curveLabel(curve: Curve): Int = when (curve) {
     Curve.ANTICIPATE -> R.string.curve_anticipate
     Curve.BOUNCE -> R.string.curve_bounce
     Curve.DECELERATE -> R.string.curve_decelerate
+    Curve.ACCELERATE -> R.string.curve_accelerate
+    Curve.SMOOTH -> R.string.curve_smooth
+    Curve.ELASTIC -> R.string.curve_elastic
+    Curve.STEPS -> R.string.curve_steps
+    Curve.HOLD -> R.string.curve_hold
     Curve.EASE -> R.string.curve_ease
     Curve.BEZIER -> R.string.curve_bezier
     Curve.LINEAR -> R.string.curve_linear
@@ -447,20 +468,54 @@ private fun CurveEditor(spec: CurveSpec, onChange: (CurveSpec) -> Unit) {
     }
     when (spec.curve) {
         Curve.SPRING -> SpringSliders(spec.spring) { onChange(spec.copy(spring = it)) }
-        Curve.OVERSHOOT, Curve.ANTICIPATE -> LabeledSlider(
-            label = stringResource(R.string.tension_label),
-            value = spec.tension,
-            display = "%.1f".format(spec.tension),
-            range = Limits.TENSION_MIN..Limits.TENSION_MAX,
-            onChange = { onChange(spec.copy(tension = it)) }
-        )
-        Curve.DECELERATE -> LabeledSlider(
+        Curve.OVERSHOOT, Curve.ANTICIPATE, Curve.ELASTIC -> {
+            LabeledSlider(
+                label = stringResource(R.string.tension_label),
+                value = spec.tension,
+                display = "%.1f".format(spec.tension),
+                range = Limits.TENSION_MIN..Limits.TENSION_MAX,
+                onChange = { onChange(spec.copy(tension = it)) }
+            )
+            if (spec.curve == Curve.ELASTIC) {
+                LabeledSlider(
+                    label = stringResource(R.string.wobble_label),
+                    value = spec.aux,
+                    display = "%.2f".format(spec.aux),
+                    range = 0.1f..8f,
+                    onChange = { onChange(spec.copy(aux = it)) }
+                )
+            }
+        }
+        Curve.DECELERATE, Curve.ACCELERATE -> LabeledSlider(
             label = stringResource(R.string.power_label),
             value = spec.tension,
             display = "%.1f".format(spec.tension),
             range = Limits.TENSION_MIN..Limits.TENSION_MAX,
             onChange = { onChange(spec.copy(tension = it)) }
         )
+        Curve.STEPS -> LabeledSlider(
+            label = stringResource(R.string.steps_label),
+            value = spec.tension,
+            display = spec.tension.roundToInt().toString(),
+            range = 2f..24f,
+            onChange = { onChange(spec.copy(tension = it)) }
+        )
+        Curve.HOLD -> {
+            LabeledSlider(
+                label = stringResource(R.string.hold_label),
+                value = spec.aux,
+                display = pct(spec.aux),
+                range = 0f..0.9f,
+                onChange = { onChange(spec.copy(aux = it)) }
+            )
+            LabeledSlider(
+                label = stringResource(R.string.power_label),
+                value = spec.tension,
+                display = "%.1f".format(spec.tension),
+                range = Limits.TENSION_MIN..Limits.TENSION_MAX,
+                onChange = { onChange(spec.copy(tension = it)) }
+            )
+        }
         Curve.BEZIER -> {
             LabeledSlider(
                 label = stringResource(R.string.bezier_x1),

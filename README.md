@@ -7,8 +7,8 @@ An LSPosed module that lets you tune the spring physics of the launcher open and
 - Simple tuning: one speed slider and a wallpaper blur slider, applied on top of the system animation or any theme
 - Advanced tuning for opening: real duration, separate curves for main, horizontal and corner motion, corner roundness, shadow, icon fade timing and start point
 - Advanced tuning for closing: springs with stiffness and damping, optionally separate for horizontal, vertical and scale, plus corner roundness
-- Curves: spring, overshoot, anticipate, bounce, decelerate, ease, custom Bezier and linear
-- Eighteen ready made themes, plus your own saved themes
+- Curves: spring, overshoot, anticipate, bounce, decelerate, accelerate, smooth step, elastic, stepped, hold-then-go, ease, custom Bezier and linear
+- Thirty-six ready made themes across six categories (system style, fast, springy, cinematic, playful, shape), plus your own saved themes
 - Live preview that plays your opening and closing settings
 - Material 3 interface with dynamic color
 - Backup and restore of your settings
