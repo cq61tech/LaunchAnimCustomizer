@@ -486,7 +486,7 @@ private fun CurveEditor(spec: CurveSpec, onChange: (CurveSpec) -> Unit) {
                 )
             }
         }
-        Curve.DECELERATE, Curve.ACCELERATE -> LabeledSlider(
+        Curve.DECELERATE, Curve.ACCELERATE, Curve.SMOOTH -> LabeledSlider(
             label = stringResource(R.string.power_label),
             value = spec.tension,
             display = "%.1f".format(spec.tension),
