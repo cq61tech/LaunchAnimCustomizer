@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             AppTheme {
                 AppRoot()
+                com.cq61tech.launchanimcustomizer.ui.CqStorePromptDialog()
             }
         }
     }
